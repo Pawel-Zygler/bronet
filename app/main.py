@@ -23,8 +23,8 @@ STATIC_DIR = BASE_DIR / "static"
 
 app = FastAPI(
     title="Bronet API",
-    description="Minimalistyczna platforma wymiany umiejętności — jeden profil pomaga drugiemu.",
-    version="1.2.0",
+    description="Minimalistyczna platforma wymiany umiejętności — jeden chłop pomaga drugiemu.",
+    version="1.2.1",
 )
 
 
