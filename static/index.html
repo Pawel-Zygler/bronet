@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <title>Bronet — Jeden chłop pomaga drugiemu</title>
   <link rel="manifest" href="/manifest.json" />
-  <link rel="stylesheet" href="/static/styles.css?v=1.3.1" />
+  <link rel="stylesheet" href="/static/styles.css?v=1.4.0" />
 </head>
 <body>
   <header class="topbar">
@@ -81,135 +81,154 @@
         <h1 class="page-title" id="editor-heading">Profil</h1>
       </div>
 
+      <div class="profile-tabs" role="tablist" aria-label="Sekcje profilu" id="editor-tabs">
+        <button type="button" class="profile-tab is-active" role="tab" aria-selected="true" data-editor-tab="skills">Umiejętności</button>
+        <button type="button" class="profile-tab" role="tab" aria-selected="false" data-editor-tab="contact">Kontakt</button>
+        <button type="button" class="profile-tab" role="tab" aria-selected="false" data-editor-tab="bio">O mnie</button>
+        <button type="button" class="profile-tab" role="tab" aria-selected="false" data-editor-tab="auth">Dane logowania</button>
+      </div>
+
       <form id="profile-form" class="profile-sheet" novalidate>
-        <div class="sheet-line sheet-line-wrap">
-          <label for="field-email" class="sheet-label">E-mail:</label>
-          <div class="inline-entry-group">
+        <!-- Zakładka 1 (frontowa): Umiejętności -->
+        <div class="profile-tab-panel" data-editor-panel="skills">
+          <div class="sheet-line">
+            <label for="field-name" class="sheet-label">Imię:</label>
             <input
-              type="email"
-              id="field-email"
-              name="email"
-              inputmode="email"
+              type="text"
+              id="field-name"
+              name="name"
               class="inline-input"
-              placeholder="twój@email.pl (do zapisu i logowania profilu)"
+              placeholder="wpisz imię, np. Paweł"
+              maxlength="80"
+              required
+            />
+          </div>
+
+          <div class="sheet-block">
+            <div class="sheet-line sheet-line-wrap">
+              <label for="field-can-help" class="sheet-label">
+                Umiem <span class="label-sub">(Potrafię pomóc z):</span>
+              </label>
+              <div class="inline-entry-group">
+                <input
+                  type="text"
+                  id="field-can-help"
+                  class="inline-input"
+                  placeholder="qa, it, związki, relacje męsko-damskie"
+                  enterkeyhint="done"
+                  autocomplete="off"
+                />
+                <button type="button" class="inline-add-btn" id="add-can-help-btn" aria-label="Dodaj umiejętność do Umiem">Dodaj</button>
+              </div>
+            </div>
+            <div id="tags-can-help" class="saved-options" aria-live="polite"></div>
+            <div id="suggestions-can-help" class="quick-suggestions"></div>
+          </div>
+
+          <div class="sheet-block">
+            <div class="sheet-line sheet-line-wrap">
+              <label for="field-need-help" class="sheet-label">
+                Potrzebuję <span class="label-sub">(Szukam pomocy z):</span>
+              </label>
+              <div class="inline-entry-group">
+                <input
+                  type="text"
+                  id="field-need-help"
+                  class="inline-input"
+                  placeholder="np. finanse, sdlc, realizacja pomysłów"
+                  enterkeyhint="done"
+                  autocomplete="off"
+                />
+                <button type="button" class="inline-add-btn" id="add-need-help-btn" aria-label="Dodaj potrzebę do Potrzebuję">Dodaj</button>
+              </div>
+            </div>
+            <div id="tags-need-help" class="saved-options" aria-live="polite"></div>
+            <div id="suggestions-need-help" class="quick-suggestions"></div>
+          </div>
+        </div>
+
+        <!-- Zakładka 2: Kontakt -->
+        <div class="profile-tab-panel" data-editor-panel="contact" hidden>
+          <div class="sheet-line">
+            <label for="field-contact" class="sheet-label">Kontakt <span class="label-sub">(opcjonalnie):</span></label>
+            <input
+              type="text"
+              id="field-contact"
+              name="contact"
+              class="inline-input"
+              placeholder="np. telefon, komunikator, @nick lub dodatkowy namiar"
               maxlength="160"
             />
-            <button type="button" class="inline-add-btn" id="load-by-email-btn" title="Masz już profil na ten e-mail? Wczytaj go">Zaloguj / Wczytaj</button>
           </div>
         </div>
 
-        <div class="sheet-line sheet-line-wrap">
-          <label for="field-password" class="sheet-label" id="label-password">
-            Hasło <span class="label-sub">(opcjonalnie):</span>
-          </label>
-          <div class="inline-entry-group">
-            <input
-              type="password"
-              id="field-password"
-              name="password"
-              class="inline-input"
-              placeholder="dowolne hasło bez specjalnych wymagań"
-              maxlength="200"
-              autocomplete="current-password"
-            />
-            <button type="button" class="inline-add-btn" id="toggle-password-btn">Pokaż</button>
+        <!-- Zakładka 3: O mnie -->
+        <div class="profile-tab-panel" data-editor-panel="bio" hidden>
+          <div class="sheet-block">
+            <label for="field-bio" class="sheet-label">O mnie <span class="label-sub">(opcjonalnie):</span></label>
+            <textarea
+              id="field-bio"
+              name="bio"
+              rows="4"
+              class="minimal-textarea"
+              placeholder="kilka słów o sobie i o tym, w czym najchętniej pomożesz"
+              maxlength="280"
+            ></textarea>
           </div>
         </div>
 
-        <div class="sheet-line sheet-line-wrap" id="new-password-row" hidden>
-          <label for="field-new-password" class="sheet-label">
-            Nowe hasło <span class="label-sub">(opcjonalnie):</span>
-          </label>
-          <div class="inline-entry-group">
-            <input
-              type="password"
-              id="field-new-password"
-              name="new_password"
-              class="inline-input"
-              placeholder="zostaw puste, jeśli nie zmieniasz hasła"
-              maxlength="200"
-              autocomplete="new-password"
-            />
-          </div>
-        </div>
-
-        <div class="sheet-line">
-          <label for="field-name" class="sheet-label">Imię:</label>
-          <input
-            type="text"
-            id="field-name"
-            name="name"
-            class="inline-input"
-            placeholder="wpisz imię, np. Paweł"
-            maxlength="80"
-            required
-          />
-        </div>
-
-        <div class="sheet-block">
+        <!-- Zakładka 4: Dane logowania -->
+        <div class="profile-tab-panel" data-editor-panel="auth" hidden>
           <div class="sheet-line sheet-line-wrap">
-            <label for="field-can-help" class="sheet-label">
-              Umiem <span class="label-sub">(Potrafię pomóc z):</span>
+            <label for="field-email" class="sheet-label">E-mail:</label>
+            <div class="inline-entry-group">
+              <input
+                type="email"
+                id="field-email"
+                name="email"
+                inputmode="email"
+                class="inline-input"
+                placeholder="twój@email.pl (do zapisu i logowania profilu)"
+                maxlength="160"
+              />
+              <button type="button" class="inline-add-btn" id="load-by-email-btn" title="Masz już profil na ten e-mail? Wczytaj go">Zaloguj / Wczytaj</button>
+            </div>
+          </div>
+
+          <div class="sheet-line sheet-line-wrap">
+            <label for="field-password" class="sheet-label" id="label-password">
+              Hasło <span class="label-sub">(opcjonalnie):</span>
             </label>
             <div class="inline-entry-group">
               <input
-                type="text"
-                id="field-can-help"
+                type="password"
+                id="field-password"
+                name="password"
                 class="inline-input"
-                placeholder="qa, it, związki, relacje męsko-damskie"
-                enterkeyhint="done"
-                autocomplete="off"
+                placeholder="dowolne hasło bez specjalnych wymagań"
+                maxlength="200"
+                autocomplete="current-password"
               />
-              <button type="button" class="inline-add-btn" id="add-can-help-btn" aria-label="Dodaj umiejętność do Umiem">Dodaj</button>
+              <button type="button" class="inline-add-btn" id="toggle-password-btn">Pokaż</button>
             </div>
           </div>
-          <div id="tags-can-help" class="saved-options" aria-live="polite"></div>
-          <div id="suggestions-can-help" class="quick-suggestions"></div>
-        </div>
 
-        <div class="sheet-block">
-          <div class="sheet-line sheet-line-wrap">
-            <label for="field-need-help" class="sheet-label">
-              Potrzebuję <span class="label-sub">(Szukam pomocy z):</span>
+          <div class="sheet-line sheet-line-wrap" id="new-password-row" hidden>
+            <label for="field-new-password" class="sheet-label">
+              Nowe hasło <span class="label-sub">(opcjonalnie):</span>
             </label>
             <div class="inline-entry-group">
               <input
-                type="text"
-                id="field-need-help"
+                type="password"
+                id="field-new-password"
+                name="new_password"
                 class="inline-input"
-                placeholder="np. finanse, sdlc, realizacja pomysłów"
-                enterkeyhint="done"
-                autocomplete="off"
+                placeholder="zostaw puste, jeśli nie zmieniasz hasła"
+                maxlength="200"
+                autocomplete="new-password"
               />
-              <button type="button" class="inline-add-btn" id="add-need-help-btn" aria-label="Dodaj potrzebę do Potrzebuję">Dodaj</button>
             </div>
           </div>
-          <div id="tags-need-help" class="saved-options" aria-live="polite"></div>
-          <div id="suggestions-need-help" class="quick-suggestions"></div>
-        </div>
-
-        <div class="sheet-line">
-          <label for="field-contact" class="sheet-label">Kontakt <span class="label-sub">(opcjonalnie):</span></label>
-          <input
-            type="text"
-            id="field-contact"
-            name="contact"
-            class="inline-input"
-            placeholder="np. e-mail, telefon lub @nick"
-            maxlength="160"
-          />
-        </div>
-
-        <div class="sheet-line">
-          <label for="field-bio" class="sheet-label">O mnie <span class="label-sub">(opcjonalnie):</span></label>
-          <input
-            type="text"
-            id="field-bio"
-            name="bio"
-            class="inline-input"
-            placeholder="jedno krótkie zdanie jak możesz pomóc"
-            maxlength="280"
-          />
         </div>
 
         <div class="form-actions">
@@ -247,7 +266,7 @@
     </a>
   </nav>
 
-  <script src="/static/app.js?v=1.3.1"></script>
+  <script src="/static/app.js?v=1.4.0"></script>
 </body>
 </html>
 

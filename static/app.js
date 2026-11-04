@@ -579,10 +579,33 @@
     }
   }
 
+  function switchEditorTab(tabName) {
+    document.querySelectorAll("[data-editor-tab]").forEach((btn) => {
+      const isActive = btn.getAttribute("data-editor-tab") === tabName;
+      btn.classList.toggle("is-active", isActive);
+      btn.setAttribute("aria-selected", isActive ? "true" : "false");
+    });
+    document.querySelectorAll("[data-editor-panel]").forEach((panel) => {
+      panel.hidden = panel.getAttribute("data-editor-panel") !== tabName;
+    });
+  }
+
+  function switchDetailTab(tabName) {
+    detailCardEl.querySelectorAll("[data-detail-tab]").forEach((btn) => {
+      const isActive = btn.getAttribute("data-detail-tab") === tabName;
+      btn.classList.toggle("is-active", isActive);
+      btn.setAttribute("aria-selected", isActive ? "true" : "false");
+    });
+    detailCardEl.querySelectorAll("[data-detail-panel]").forEach((panel) => {
+      panel.hidden = panel.getAttribute("data-detail-panel") !== tabName;
+    });
+  }
+
   function initEditorWithProfile(profile) {
     setSaveStatus("", false);
     fieldCanHelp.value = "";
     fieldNeedHelp.value = "";
+    switchEditorTab("skills");
 
     if (profile) {
       state.editingProfileId = profile.id;
@@ -652,39 +675,53 @@
             .join("")
         : `<span class="label-sub">brak wpisanych opcji</span>`;
 
+      const contactPanelHtml = profile.email
+        ? `<div class="detail-contact-box" style="margin-top: 0;"><strong>E-mail:</strong> <a href="mailto:${escapeHtml(
+            profile.email
+          )}" style="text-decoration: underline;">${escapeHtml(profile.email)}</a>${
+            profile.contact && profile.contact !== profile.email
+              ? `<div style="margin-top: 6px;"><strong>Kontakt:</strong> ${escapeHtml(
+                  profile.contact
+                )}</div>`
+              : ""
+          }</div>`
+        : profile.contact
+        ? `<div class="detail-contact-box" style="margin-top: 0;"><strong>Kontakt:</strong> ${escapeHtml(
+            profile.contact
+          )}</div>`
+        : `<span class="label-sub">brak wpisanych danych kontaktowych</span>`;
+
+      const bioPanelHtml = profile.bio
+        ? `<p class="detail-bio-text">${escapeHtml(profile.bio)}</p>`
+        : `<span class="label-sub">brak opisu</span>`;
+
       detailCardEl.innerHTML = `
-        <h1 class="page-title" style="margin-bottom: 20px;">Profil</h1>
-        <div class="detail-line"><strong>Imię:</strong> ${escapeHtml(profile.name)}</div>
-        ${
-          profile.bio
-            ? `<div class="detail-line"><strong>O mnie:</strong> ${escapeHtml(profile.bio)}</div>`
-            : ""
-        }
-        <div class="detail-line">
-          <strong>Umiem</strong> <span class="label-sub">(Potrafię pomóc z):</span>
-          <div style="margin-top: 6px;">${canTags}</div>
+        <h1 class="page-title" style="margin-bottom: 16px;">Profil</h1>
+        <div class="profile-tabs" role="tablist" aria-label="Sekcje profilu">
+          <button type="button" class="profile-tab is-active" role="tab" aria-selected="true" data-detail-tab="skills">Umiejętności</button>
+          <button type="button" class="profile-tab" role="tab" aria-selected="false" data-detail-tab="contact">Kontakt</button>
+          <button type="button" class="profile-tab" role="tab" aria-selected="false" data-detail-tab="bio">O mnie</button>
         </div>
-        <div class="detail-line">
-          <strong>Potrzebuję</strong> <span class="label-sub">(Szukam pomocy z):</span>
-          <div style="margin-top: 6px;">${needTags}</div>
+
+        <div class="profile-tab-panel" data-detail-panel="skills">
+          <div class="detail-line" style="margin: 0;"><strong>Imię:</strong> ${escapeHtml(profile.name)}</div>
+          <div class="detail-line" style="margin: 0;">
+            <strong>Umiem</strong> <span class="label-sub">(Potrafię pomóc z):</span>
+            <div style="margin-top: 6px;">${canTags}</div>
+          </div>
+          <div class="detail-line" style="margin: 0;">
+            <strong>Potrzebuję</strong> <span class="label-sub">(Szukam pomocy z):</span>
+            <div style="margin-top: 6px;">${needTags}</div>
+          </div>
         </div>
-        ${
-          profile.email
-            ? `<div class="detail-contact-box"><strong>E-mail:</strong> <a href="mailto:${escapeHtml(
-                profile.email
-              )}" style="text-decoration: underline;">${escapeHtml(profile.email)}</a>${
-                profile.contact && profile.contact !== profile.email
-                  ? `<div style="margin-top: 6px;"><strong>Kontakt:</strong> ${escapeHtml(
-                      profile.contact
-                    )}</div>`
-                  : ""
-              }</div>`
-            : profile.contact
-            ? `<div class="detail-contact-box"><strong>Kontakt:</strong> ${escapeHtml(
-                profile.contact
-              )}</div>`
-            : ""
-        }
+
+        <div class="profile-tab-panel" data-detail-panel="contact" hidden>
+          ${contactPanelHtml}
+        </div>
+
+        <div class="profile-tab-panel" data-detail-panel="bio" hidden>
+          ${bioPanelHtml}
+        </div>
       `;
 
       document.getElementById("btn-edit-this-profile").addEventListener("click", () => {
@@ -741,6 +778,19 @@
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
         e.preventDefault();
         navigate(link.getAttribute("href"));
+        return;
+      }
+
+      // Profile tabs (editor & detail)
+      const editorTabBtn = e.target.closest("[data-editor-tab]");
+      if (editorTabBtn) {
+        switchEditorTab(editorTabBtn.getAttribute("data-editor-tab"));
+        return;
+      }
+
+      const detailTabBtn = e.target.closest("[data-detail-tab]");
+      if (detailTabBtn) {
+        switchDetailTab(detailTabBtn.getAttribute("data-detail-tab"));
         return;
       }
 
@@ -930,17 +980,19 @@
       }
       renderEditorTags();
 
-      const email = fieldEmail.value.trim().toLowerCase();
-      if (!email || !email.includes("@")) {
-        setSaveStatus("Podaj adres e-mail.", true);
-        fieldEmail.focus();
+      const name = fieldName.value.trim();
+      if (!name) {
+        switchEditorTab("skills");
+        setSaveStatus("Podaj imię.", true);
+        fieldName.focus();
         return;
       }
 
-      const name = fieldName.value.trim();
-      if (!name) {
-        setSaveStatus("Podaj imię.", true);
-        fieldName.focus();
+      const email = fieldEmail.value.trim().toLowerCase();
+      if (!email || !email.includes("@")) {
+        switchEditorTab("auth");
+        setSaveStatus("Podaj adres e-mail w zakładce Dane logowania.", true);
+        fieldEmail.focus();
         return;
       }
 
@@ -948,7 +1000,8 @@
       const newPassword = fieldNewPassword.value;
 
       if (state.editingProfileId && state.editingHasPassword && !password) {
-        setSaveStatus("Podaj hasło profilu.", true);
+        switchEditorTab("auth");
+        setSaveStatus("Podaj hasło profilu w zakładce Dane logowania.", true);
         fieldPassword.focus();
         return;
       }
@@ -992,9 +1045,15 @@
           false
         );
       } catch (err) {
-        setSaveStatus(err.message || "Nie udało się zapisać profilu.", true);
-        if ((err.message || "").toLowerCase().includes("hasł")) {
+        const msg = err.message || "Nie udało się zapisać profilu.";
+        setSaveStatus(msg, true);
+        const msgLower = msg.toLowerCase();
+        if (msgLower.includes("hasł")) {
+          switchEditorTab("auth");
           fieldPassword.focus();
+        } else if (msgLower.includes("e-mail") || msgLower.includes("email")) {
+          switchEditorTab("auth");
+          fieldEmail.focus();
         }
       } finally {
         saveProfileBtn.disabled = false;
