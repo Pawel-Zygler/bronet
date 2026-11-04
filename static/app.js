@@ -67,6 +67,8 @@
   const editorHeading = document.getElementById("editor-heading");
   const btnCreateFresh = document.getElementById("btn-create-fresh");
   const profileForm = document.getElementById("profile-form");
+  const fieldEmail = document.getElementById("field-email");
+  const loadByEmailBtn = document.getElementById("load-by-email-btn");
   const fieldName = document.getElementById("field-name");
   const fieldCanHelp = document.getElementById("field-can-help");
   const fieldNeedHelp = document.getElementById("field-need-help");
@@ -533,6 +535,7 @@
       state.editingProfileId = profile.id;
       editorHeading.textContent = "Profil";
       btnCreateFresh.hidden = false;
+      fieldEmail.value = profile.email || "";
       fieldName.value = profile.name || "";
       fieldContact.value = profile.contact || "";
       fieldBio.value = profile.bio || "";
@@ -544,6 +547,7 @@
       state.editingProfileId = null;
       editorHeading.textContent = "Profil";
       btnCreateFresh.hidden = !state.myProfile;
+      fieldEmail.value = "";
       fieldName.value = "";
       fieldContact.value = "";
       fieldBio.value = "";
@@ -612,7 +616,17 @@
           <div style="margin-top: 6px;">${needTags}</div>
         </div>
         ${
-          profile.contact
+          profile.email
+            ? `<div class="detail-contact-box"><strong>E-mail:</strong> <a href="mailto:${escapeHtml(
+                profile.email
+              )}" style="text-decoration: underline;">${escapeHtml(profile.email)}</a>${
+                profile.contact && profile.contact !== profile.email
+                  ? `<div style="margin-top: 6px;"><strong>Kontakt:</strong> ${escapeHtml(
+                      profile.contact
+                    )}</div>`
+                  : ""
+              }</div>`
+            : profile.contact
             ? `<div class="detail-contact-box"><strong>Kontakt:</strong> ${escapeHtml(
                 profile.contact
               )}</div>`
@@ -799,6 +813,26 @@
     wireSkillInput(fieldCanHelp, addCanHelpBtn, state.editorCanHelp);
     wireSkillInput(fieldNeedHelp, addNeedHelpBtn, state.editorNeedHelp);
 
+    loadByEmailBtn.addEventListener("click", async () => {
+      const email = fieldEmail.value.trim().toLowerCase();
+      saveFeedbackEl.classList.remove("is-error");
+      if (!email || !email.includes("@")) {
+        saveFeedbackEl.textContent = "Wpisz poprawny adres e-mail, aby wczytać profil.";
+        saveFeedbackEl.classList.add("is-error");
+        fieldEmail.focus();
+        return;
+      }
+      try {
+        const found = await apiGet(`/api/profiles/by-email?email=${encodeURIComponent(email)}`);
+        setMyProfile(found);
+        initEditorWithProfile(found);
+        saveFeedbackEl.textContent = `Wczytano profil „${found.name}” (${found.email}) ✓`;
+      } catch (err) {
+        saveFeedbackEl.textContent = "Brak profilu na ten e-mail — wypełnij dane poniżej i kliknij Zapisz profil.";
+        saveFeedbackEl.classList.add("is-error");
+      }
+    });
+
     // Form submit — real persistence to SQLite via REST API
     profileForm.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -816,6 +850,14 @@
       }
       renderEditorTags();
 
+      const email = fieldEmail.value.trim().toLowerCase();
+      if (!email || !email.includes("@")) {
+        saveFeedbackEl.textContent = "Podaj adres e-mail, aby zapisać profil.";
+        saveFeedbackEl.classList.add("is-error");
+        fieldEmail.focus();
+        return;
+      }
+
       const name = fieldName.value.trim();
       if (!name) {
         saveFeedbackEl.textContent = "Podaj imię, aby zapisać profil.";
@@ -826,6 +868,7 @@
 
       const payload = {
         name,
+        email,
         can_help: state.editorCanHelp,
         need_help: state.editorNeedHelp,
         contact: fieldContact.value.trim(),

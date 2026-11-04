@@ -87,6 +87,22 @@
       </div>
 
       <form id="profile-form" class="profile-sheet" novalidate>
+        <div class="sheet-line sheet-line-wrap">
+          <label for="field-email" class="sheet-label">E-mail:</label>
+          <div class="inline-entry-group">
+            <input
+              type="email"
+              id="field-email"
+              name="email"
+              inputmode="email"
+              class="inline-input"
+              placeholder="twój@email.pl (do zapisu i logowania profilu)"
+              maxlength="160"
+            />
+            <button type="button" class="inline-add-btn" id="load-by-email-btn" title="Masz już profil na ten e-mail? Wczytaj go">Wczytaj po mailu</button>
+          </div>
+        </div>
+
         <div class="sheet-line">
           <label for="field-name" class="sheet-label">Imię:</label>
           <input

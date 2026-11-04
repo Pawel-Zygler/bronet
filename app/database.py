@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_DB_PATH = BASE_DIR / "bronet.db"
 
 PL_CHAR_MAP = str.maketrans(
     {
@@ -24,20 +23,29 @@ PL_CHAR_MAP = str.maketrans(
 
 def get_db_path() -> Path:
     env_path = os.environ.get("BRONET_DB_PATH")
-    return Path(env_path) if env_path else DEFAULT_DB_PATH
+    if env_path:
+        return Path(env_path)
+    volume_dir = os.environ.get("RAILWAY_VOLUME_MOUNT_PATH")
+    if volume_dir:
+        return Path(volume_dir) / "bronet.db"
+    return BASE_DIR / "bronet.db"
 
 
 def normalize_text(value: str) -> str:
     """Lowercase, collapse whitespace, and strip Polish diacritics for resilient matching."""
-    collapsed = " ".join(value.strip().lower().split())
+    collapsed = " ".join(str(value or "").strip().lower().split())
     return collapsed.translate(PL_CHAR_MAP)
+
+
+def normalize_email(value: Optional[str]) -> str:
+    return str(value or "").strip().lower()
 
 
 def clean_skills(raw_skills: List[str]) -> List[str]:
     """Split comma-separated entries, trim, and deduplicate while preserving display form."""
     result: List[str] = []
     seen = set()
-    for entry in raw_skills:
+    for entry in raw_skills or []:
         if not entry:
             continue
         parts = [p.strip().rstrip(".") for p in str(entry).split(",")]
@@ -53,7 +61,9 @@ def clean_skills(raw_skills: List[str]) -> List[str]:
 
 
 def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(get_db_path()))
+    db_path = get_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
@@ -62,6 +72,7 @@ def get_connection() -> sqlite3.Connection:
 SEED_PROFILES = [
     {
         "name": "Marek",
+        "email": "marek@bronet.pl",
         "can_help": ["qa", "it", "związki", "relacje męsko-damskie"],
         "need_help": ["finanse", "sdlc", "realizacja pomysłów"],
         "contact": "marek@bronet.pl",
@@ -69,6 +80,7 @@ SEED_PROFILES = [
     },
     {
         "name": "Kasia",
+        "email": "kasia@bronet.pl",
         "can_help": ["finanse", "budżet osobisty", "excel", "realizacja pomysłów"],
         "need_help": ["it", "strona www", "angielski"],
         "contact": "kasia@bronet.pl",
@@ -76,6 +88,7 @@ SEED_PROFILES = [
     },
     {
         "name": "Tomek",
+        "email": "tomek@bronet.pl",
         "can_help": ["sdlc", "zarządzanie projektami", "it", "architektura systemów"],
         "need_help": ["qa", "relacje męsko-damskie", "trening siłowy"],
         "contact": "tomek@bronet.pl",
@@ -83,6 +96,7 @@ SEED_PROFILES = [
     },
     {
         "name": "Ania",
+        "email": "ania@bronet.pl",
         "can_help": ["ux/ui", "figma", "angielski", "komunikacja"],
         "need_help": ["finanse", "podatki b2b", "realizacja pomysłów"],
         "contact": "ania@bronet.pl",
@@ -90,6 +104,7 @@ SEED_PROFILES = [
     },
     {
         "name": "Piotr",
+        "email": "piotr@bronet.pl",
         "can_help": ["podatki b2b", "umowy", "trening siłowy", "bieganie"],
         "need_help": ["ux/ui", "it", "qa"],
         "contact": "piotr@bronet.pl",
@@ -106,6 +121,7 @@ def init_db(seed: bool = True) -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 name_normalized TEXT NOT NULL,
+                email TEXT NOT NULL DEFAULT '',
                 contact TEXT NOT NULL DEFAULT '',
                 bio TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL,
@@ -126,6 +142,12 @@ def init_db(seed: bool = True) -> None:
                 ON profile_skills(kind, skill_normalized);
             """
         )
+        # Ensure backward-compatible migration if `email` column was absent
+        cols = {row["name"] for row in conn.execute("PRAGMA table_info(profiles)").fetchall()}
+        if "email" not in cols:
+            conn.execute("ALTER TABLE profiles ADD COLUMN email TEXT NOT NULL DEFAULT '';")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);")
+
         if seed:
             row = conn.execute("SELECT COUNT(*) AS cnt FROM profiles").fetchone()
             if row and row["cnt"] == 0:
@@ -139,17 +161,23 @@ def _now_iso() -> str:
 
 def _insert_profile_in_tx(conn: sqlite3.Connection, data: Dict[str, Any]) -> int:
     now = _now_iso()
-    name = data["name"].strip()
+    name = str(data.get("name") or "").strip()
+    email = normalize_email(data.get("email"))
+    contact = str(data.get("contact") or "").strip()
+    if not contact and email:
+        contact = email
+
     cur = conn.execute(
         """
-        INSERT INTO profiles (name, name_normalized, contact, bio, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO profiles (name, name_normalized, email, contact, bio, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         (
             name,
             normalize_text(name),
-            data.get("contact", "").strip(),
-            data.get("bio", "").strip(),
+            email,
+            contact,
+            str(data.get("bio") or "").strip(),
             now,
             now,
         ),
@@ -214,6 +242,7 @@ def _hydrate_profiles(conn: sqlite3.Connection, profile_rows: List[sqlite3.Row])
             {
                 "id": pid,
                 "name": r["name"],
+                "email": r["email"] if "email" in r.keys() else "",
                 "can_help": by_profile[pid]["can_help"],
                 "need_help": by_profile[pid]["need_help"],
                 "contact": r["contact"],
@@ -226,14 +255,6 @@ def _hydrate_profiles(conn: sqlite3.Connection, profile_rows: List[sqlite3.Row])
 
 
 def list_profiles(query: str = "", mode: str = "all") -> List[Dict[str, Any]]:
-    """
-    Search saved profiles by skill or name.
-    mode:
-      - 'all': matches skill in 'can_help' OR 'need_help' OR profile name
-      - 'can_help' ('umiem'): matches skill in 'can_help'
-      - 'need_help' ('potrzebuje'): matches skill in 'need_help'
-    Multiple comma/space query tokens are supported cleanly.
-    """
     q_norm = normalize_text(query)
     with get_connection() as conn:
         all_rows = conn.execute(
@@ -244,7 +265,6 @@ def list_profiles(query: str = "", mode: str = "all") -> List[Dict[str, Any]]:
     if not q_norm:
         return profiles
 
-    # Support comma-separated terms (OR) or single phrase substring match
     terms = [normalize_text(t) for t in query.split(",") if normalize_text(t)]
     if not terms:
         return profiles
@@ -289,7 +309,28 @@ def get_profile(profile_id: int) -> Optional[Dict[str, Any]]:
         return _hydrate_profiles(conn, [row])[0]
 
 
+def get_profile_by_email(email: str) -> Optional[Dict[str, Any]]:
+    cleaned = normalize_email(email)
+    if not cleaned:
+        return None
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM profiles WHERE email = ? ORDER BY updated_at DESC, id DESC LIMIT 1",
+            (cleaned,),
+        ).fetchone()
+        if not row:
+            return None
+        return _hydrate_profiles(conn, [row])[0]
+
+
 def create_profile(data: Dict[str, Any]) -> Dict[str, Any]:
+    email = normalize_email(data.get("email"))
+    if email:
+        existing = get_profile_by_email(email)
+        if existing:
+            updated = update_profile(existing["id"], data)
+            if updated:
+                return updated
     with get_connection() as conn:
         profile_id = _insert_profile_in_tx(conn, data)
         row = conn.execute("SELECT * FROM profiles WHERE id = ?", (profile_id,)).fetchone()
@@ -302,18 +343,24 @@ def update_profile(profile_id: int, data: Dict[str, Any]) -> Optional[Dict[str, 
         if not existing:
             return None
         now = _now_iso()
-        name = data["name"].strip()
+        name = str(data.get("name") or "").strip()
+        email = normalize_email(data.get("email"))
+        contact = str(data.get("contact") or "").strip()
+        if not contact and email:
+            contact = email
+
         conn.execute(
             """
             UPDATE profiles
-            SET name = ?, name_normalized = ?, contact = ?, bio = ?, updated_at = ?
+            SET name = ?, name_normalized = ?, email = ?, contact = ?, bio = ?, updated_at = ?
             WHERE id = ?
             """,
             (
                 name,
                 normalize_text(name),
-                data.get("contact", "").strip(),
-                data.get("bio", "").strip(),
+                email,
+                contact,
+                str(data.get("bio") or "").strip(),
                 now,
                 profile_id,
             ),
@@ -335,7 +382,6 @@ def delete_profile(profile_id: int) -> bool:
 
 
 def get_skills_catalog() -> Dict[str, Any]:
-    """Return popular skills saved across all profiles for instant filter pills & autocomplete."""
     with get_connection() as conn:
         can_rows = conn.execute(
             """
@@ -389,12 +435,6 @@ def _skills_overlap(source_skills: List[str], target_skills: List[str]) -> List[
 
 
 def get_matches_for_profile(profile_id: int) -> Optional[Dict[str, Any]]:
-    """
-    Find how other profiles and this profile can help each other:
-    - they_help_me: their 'can_help' (Umiem) matches my 'need_help' (Potrzebuję)
-    - i_help_them: my 'can_help' (Umiem) matches their 'need_help' (Potrzebuję)
-    - mutual: both are non-empty (wymiana 1:1!)
-    """
     me = get_profile(profile_id)
     if not me:
         return None

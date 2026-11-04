@@ -9,6 +9,7 @@ from app.database import (
     delete_profile,
     get_matches_for_profile,
     get_profile,
+    get_profile_by_email,
     get_skills_catalog,
     init_db,
     list_profiles,
@@ -22,7 +23,7 @@ STATIC_DIR = BASE_DIR / "static"
 app = FastAPI(
     title="Bronet API",
     description="Minimalistyczna platforma wymiany umiejętności — jeden profil pomaga drugiemu.",
-    version="1.0.0",
+    version="1.1.0",
 )
 
 
@@ -46,8 +47,18 @@ def api_list_profiles(
     return list_profiles(query=q, mode=effective_mode)
 
 
+@app.get("/api/profiles/by-email", response_model=ProfileResponse)
+def api_get_profile_by_email(email: str = Query(..., min_length=3)) -> dict:
+    profile = get_profile_by_email(email)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Nie znaleziono profilu dla podanego adresu e-mail.")
+    return profile
+
+
 @app.post("/api/profiles", response_model=ProfileResponse, status_code=201)
 def api_create_profile(payload: ProfilePayload) -> dict:
+    if not payload.name.strip():
+        raise HTTPException(status_code=422, detail="Imię nie może być puste.")
     return create_profile(payload.dict())
 
 
@@ -61,6 +72,8 @@ def api_get_profile(profile_id: int) -> dict:
 
 @app.put("/api/profiles/{profile_id}", response_model=ProfileResponse)
 def api_update_profile(profile_id: int, payload: ProfilePayload) -> dict:
+    if not payload.name.strip():
+        raise HTTPException(status_code=422, detail="Imię nie może być puste.")
     updated = update_profile(profile_id, payload.dict())
     if not updated:
         raise HTTPException(status_code=404, detail="Nie znaleziono profilu.")
