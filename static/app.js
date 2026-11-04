@@ -87,6 +87,9 @@
   const suggestionsNeedHelpEl = document.getElementById("suggestions-need-help");
   const saveFeedbackEl = document.getElementById("save-feedback");
   const saveProfileBtn = document.getElementById("save-profile-btn");
+  const mobileEditorActionsEl = document.getElementById("mobile-editor-actions");
+  const mobileSaveBtn = document.getElementById("mobile-save-btn");
+  const mobileSaveHintEl = document.getElementById("mobile-save-hint");
 
   // Detail Elements
   const detailCardEl = document.getElementById("detail-card");
@@ -169,10 +172,35 @@
     routeCurrentPath(options);
   }
 
+  let mobileHintTimer = null;
+  function setSaveStatus(message, isError = false) {
+    saveFeedbackEl.textContent = message;
+    saveFeedbackEl.classList.toggle("is-error", Boolean(isError));
+
+    if (mobileSaveHintEl) {
+      clearTimeout(mobileHintTimer);
+      if (!message) {
+        mobileSaveHintEl.textContent = "";
+        mobileSaveHintEl.classList.remove("is-error");
+      } else {
+        mobileSaveHintEl.textContent = isError ? message : "Zapisano ✓";
+        mobileSaveHintEl.classList.toggle("is-error", Boolean(isError));
+        if (!isError) {
+          mobileHintTimer = setTimeout(() => {
+            mobileSaveHintEl.textContent = "";
+          }, 3000);
+        }
+      }
+    }
+  }
+
   function showOnlyView(activeKey, navKey) {
     Object.keys(views).forEach((k) => {
       views[k].hidden = k !== activeKey;
     });
+    if (mobileEditorActionsEl) {
+      mobileEditorActionsEl.hidden = activeKey !== "editor";
+    }
     document.querySelectorAll("[data-nav]").forEach((el) => {
       el.classList.toggle("is-active", el.getAttribute("data-nav") === navKey);
     });
@@ -553,8 +581,7 @@
   }
 
   function initEditorWithProfile(profile) {
-    saveFeedbackEl.textContent = "";
-    saveFeedbackEl.classList.remove("is-error");
+    setSaveStatus("", false);
     fieldCanHelp.value = "";
     fieldNeedHelp.value = "";
 
@@ -869,10 +896,9 @@
     loadByEmailBtn.addEventListener("click", async () => {
       const email = fieldEmail.value.trim().toLowerCase();
       const password = fieldPassword.value;
-      saveFeedbackEl.classList.remove("is-error");
+      setSaveStatus("", false);
       if (!email || !email.includes("@")) {
-        saveFeedbackEl.textContent = "Wpisz poprawny adres e-mail, aby wczytać profil.";
-        saveFeedbackEl.classList.add("is-error");
+        setSaveStatus("Wpisz poprawny e-mail.", true);
         fieldEmail.focus();
         return;
       }
@@ -883,10 +909,9 @@
         }
         setMyProfile(found);
         initEditorWithProfile(found);
-        saveFeedbackEl.textContent = `Wczytano profil „${found.name}” (${found.email}) ✓`;
+        setSaveStatus(`Wczytano profil „${found.name}” ✓`, false);
       } catch (err) {
-        saveFeedbackEl.textContent = err.message || "Nie udało się wczytać profilu.";
-        saveFeedbackEl.classList.add("is-error");
+        setSaveStatus(err.message || "Nie udało się wczytać profilu.", true);
         if ((err.message || "").toLowerCase().includes("hasł")) {
           fieldPassword.focus();
         }
@@ -896,8 +921,7 @@
     // Form submit — real persistence to SQLite via REST API
     profileForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      saveFeedbackEl.textContent = "";
-      saveFeedbackEl.classList.remove("is-error");
+      setSaveStatus("", false);
 
       // Harvest any uncommitted text left in inputs
       if (fieldCanHelp.value.trim()) {
@@ -912,16 +936,14 @@
 
       const email = fieldEmail.value.trim().toLowerCase();
       if (!email || !email.includes("@")) {
-        saveFeedbackEl.textContent = "Podaj adres e-mail, aby zapisać profil.";
-        saveFeedbackEl.classList.add("is-error");
+        setSaveStatus("Podaj adres e-mail.", true);
         fieldEmail.focus();
         return;
       }
 
       const name = fieldName.value.trim();
       if (!name) {
-        saveFeedbackEl.textContent = "Podaj imię, aby zapisać profil.";
-        saveFeedbackEl.classList.add("is-error");
+        setSaveStatus("Podaj imię.", true);
         fieldName.focus();
         return;
       }
@@ -930,8 +952,7 @@
       const newPassword = fieldNewPassword.value;
 
       if (state.editingProfileId && state.editingHasPassword && !password) {
-        saveFeedbackEl.textContent = "Podaj hasło profilu, aby zapisać zmiany.";
-        saveFeedbackEl.classList.add("is-error");
+        setSaveStatus("Podaj hasło profilu.", true);
         fieldPassword.focus();
         return;
       }
@@ -948,6 +969,7 @@
       };
 
       saveProfileBtn.disabled = true;
+      if (mobileSaveBtn) mobileSaveBtn.disabled = true;
       try {
         let saved;
         if (state.editingProfileId) {
@@ -968,17 +990,20 @@
         btnCreateFresh.hidden = false;
         syncPasswordFieldsForProfile(saved);
         renderEditorTags();
-        saveFeedbackEl.textContent = saved.has_password
-          ? `Zapisano profil „${saved.name}” (chroniony hasłem) ✓`
-          : `Zapisano profil „${saved.name}” ✓`;
+        setSaveStatus(
+          saved.has_password
+            ? `Zapisano profil „${saved.name}” (chroniony hasłem) ✓`
+            : `Zapisano profil „${saved.name}” ✓`,
+          false
+        );
       } catch (err) {
-        saveFeedbackEl.textContent = err.message || "Nie udało się zapisać profilu.";
-        saveFeedbackEl.classList.add("is-error");
+        setSaveStatus(err.message || "Nie udało się zapisać profilu.", true);
         if ((err.message || "").toLowerCase().includes("hasł")) {
           fieldPassword.focus();
         }
       } finally {
         saveProfileBtn.disabled = false;
+        if (mobileSaveBtn) mobileSaveBtn.disabled = false;
       }
     });
   }

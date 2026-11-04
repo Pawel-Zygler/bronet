@@ -80,6 +80,10 @@ a {
   gap: 22px;
 }
 
+.mobile-top-actions {
+  display: none;
+}
+
 .nav-link {
   font-size: 0.93rem;
   color: var(--text-muted);
@@ -752,11 +756,38 @@ a {
   }
 
   .topbar-inner {
-    padding: 12px 18px;
+    padding: 10px 16px;
+    min-height: 52px;
   }
 
   .desktop-nav {
     display: none;
+  }
+
+  .mobile-top-actions:not([hidden]) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  .mobile-top-save-btn {
+    padding: 6px 14px;
+    font-size: 0.88rem;
+    border-radius: var(--radius-pill);
+  }
+
+  .mobile-save-hint {
+    font-size: 0.78rem;
+    color: var(--match-text);
+    max-width: 170px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobile-save-hint.is-error {
+    color: #b42318;
   }
 
   .container {
