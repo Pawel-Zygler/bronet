@@ -96,7 +96,6 @@
 
   // Detail Elements
   const detailCardEl = document.getElementById("detail-card");
-  const detailActionsEl = document.getElementById("detail-actions");
 
   // API Helpers
   async function apiGet(url) {
@@ -238,8 +237,6 @@
       showOnlyView("editor", "profile");
       if (options.forceFresh) {
         initEditorWithProfile(null);
-      } else if (options.editProfile) {
-        initEditorWithProfile(options.editProfile);
       } else if (state.myProfile) {
         // Refresh latest version of my profile
         try {
@@ -661,24 +658,12 @@
     syncLogoutVisibility();
   }
 
-  // Detail View (/profil/:id)
+  // Detail View (/profil/:id — read-only)
   async function renderProfileDetail(profileId) {
     detailCardEl.innerHTML = `<p class="label-sub">Ładowanie profilu...</p>`;
-    detailActionsEl.innerHTML = "";
 
     try {
       const profile = await apiGet(`/api/profiles/${profileId}`);
-      const isMine = state.myProfile && state.myProfile.id === profile.id;
-
-      detailActionsEl.innerHTML = `
-        <button type="button" class="btn btn-ghost" id="btn-edit-this-profile">Edytuj profil</button>
-        ${
-          !isMine
-            ? `<button type="button" class="text-action" id="btn-set-as-mine" title="Ustaw jako mój aktywny profil w tej przeglądarce">Ustaw jako mój profil</button>`
-            : `<span class="badge badge-self">Twój aktywny profil</span><button type="button" class="text-action" id="btn-detail-logout">Wyloguj</button>`
-        }
-        <button type="button" class="text-action text-action-danger" id="btn-delete-this-profile">Usuń</button>
-      `;
 
       const canTags = profile.can_help.length
         ? profile.can_help
@@ -750,52 +735,6 @@
           ${bioPanelHtml}
         </div>
       `;
-
-      document.getElementById("btn-edit-this-profile").addEventListener("click", () => {
-        navigate("/profil", { editProfile: profile });
-      });
-
-      const setMineBtn = document.getElementById("btn-set-as-mine");
-      if (setMineBtn) {
-        setMineBtn.addEventListener("click", () => {
-          setMyProfile(profile);
-          renderProfileDetail(profile.id);
-        });
-      }
-
-      const detailLogoutBtn = document.getElementById("btn-detail-logout");
-      if (detailLogoutBtn) {
-        detailLogoutBtn.addEventListener("click", () => {
-          logoutProfile();
-        });
-      }
-
-      document.getElementById("btn-delete-this-profile").addEventListener("click", async () => {
-        let pwd = state.sessionPasswords[profile.id] || "";
-        if (profile.has_password && !pwd) {
-          const entered = window.prompt(`Profil „${profile.name}” jest chroniony hasłem. Podaj hasło, aby go usunąć:`);
-          if (entered === null) return;
-          pwd = entered;
-        } else if (!window.confirm(`Czy na pewno usunąć profil „${profile.name}”?`)) {
-          return;
-        }
-
-        try {
-          await apiSend(
-            `/api/profiles/${profile.id}`,
-            "DELETE",
-            null,
-            pwd ? { "X-Profile-Password": pwd } : {}
-          );
-          delete state.sessionPasswords[profile.id];
-          if (state.myProfile && state.myProfile.id === profile.id) {
-            setMyProfile(null);
-          }
-          navigate("/");
-        } catch (err) {
-          window.alert(err.message || "Nie udało się usunąć profilu.");
-        }
-      });
     } catch (err) {
       detailCardEl.innerHTML = `<div class="empty-state">Nie znaleziono profilu (${escapeHtml(
         err.message
