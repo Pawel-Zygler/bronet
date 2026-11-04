@@ -843,13 +843,16 @@
     });
 
     // Inline skill entry handlers (Enter or comma)
-    function wireSkillInput(inputEl, btnEl, targetList) {
+    function wireSkillInput(inputEl, btnEl, listKey) {
       const commitInput = () => {
-        if (inputEl.value.trim()) {
-          addSkillsToEditorList(targetList, inputEl.value);
-          inputEl.value = "";
-          renderEditorTags();
+        const raw = inputEl.value.trim();
+        if (!raw) {
+          inputEl.focus();
+          return;
         }
+        addSkillsToEditorList(state[listKey], raw);
+        inputEl.value = "";
+        renderEditorTags();
       };
 
       inputEl.addEventListener("keydown", (e) => {
@@ -863,20 +866,21 @@
         if (inputEl.value.includes(",")) {
           const parts = inputEl.value.split(",");
           const trailing = parts.pop() || "";
-          addSkillsToEditorList(targetList, parts.join(","));
+          addSkillsToEditorList(state[listKey], parts.join(","));
           inputEl.value = trailing.trimStart();
           renderEditorTags();
         }
       });
 
-      btnEl.addEventListener("click", () => {
+      btnEl.addEventListener("click", (e) => {
+        e.preventDefault();
         commitInput();
         inputEl.focus();
       });
     }
 
-    wireSkillInput(fieldCanHelp, addCanHelpBtn, state.editorCanHelp);
-    wireSkillInput(fieldNeedHelp, addNeedHelpBtn, state.editorNeedHelp);
+    wireSkillInput(fieldCanHelp, addCanHelpBtn, "editorCanHelp");
+    wireSkillInput(fieldNeedHelp, addNeedHelpBtn, "editorNeedHelp");
 
     togglePasswordBtn.addEventListener("click", () => {
       const nextType = fieldPassword.type === "password" ? "text" : "password";

@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import List, Optional
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -26,6 +26,15 @@ app = FastAPI(
     description="Minimalistyczna platforma wymiany umiejętności — jeden chłop pomaga drugiemu.",
     version="1.2.1",
 )
+
+
+@app.middleware("http")
+async def revalidate_static_and_spa(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path == "/" or path.startswith("/profil") or path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return response
 
 
 @app.on_event("startup")
