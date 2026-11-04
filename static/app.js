@@ -65,7 +65,6 @@
 
   // Editor Elements
   const editorHeading = document.getElementById("editor-heading");
-  const btnCreateFresh = document.getElementById("btn-create-fresh");
   const profileForm = document.getElementById("profile-form");
   const fieldEmail = document.getElementById("field-email");
   const loadByEmailBtn = document.getElementById("load-by-email-btn");
@@ -588,7 +587,6 @@
     if (profile) {
       state.editingProfileId = profile.id;
       editorHeading.textContent = "Profil";
-      btnCreateFresh.hidden = false;
       fieldEmail.value = profile.email || "";
       fieldName.value = profile.name || "";
       fieldContact.value = profile.contact || "";
@@ -601,7 +599,6 @@
     } else {
       state.editingProfileId = null;
       editorHeading.textContent = "Profil";
-      btnCreateFresh.hidden = !state.myProfile;
       fieldEmail.value = "";
       fieldName.value = "";
       fieldContact.value = "";
@@ -845,11 +842,6 @@
       });
     });
 
-    // New profile buttons
-    const openFreshEditor = () => navigate("/profil", { forceFresh: true });
-    btnCreateFresh.addEventListener("click", openFreshEditor);
-    document.getElementById("mobile-new-profile-btn").addEventListener("click", openFreshEditor);
-
     // Inline skill entry handlers (Enter or comma)
     function wireSkillInput(inputEl, btnEl, targetList) {
       const commitInput = () => {
@@ -987,7 +979,6 @@
         state.editingProfileId = saved.id;
         state.skillsCatalog = await apiGet("/api/skills");
         saveProfileBtn.textContent = "Zapisz zmiany w profilu";
-        btnCreateFresh.hidden = false;
         syncPasswordFieldsForProfile(saved);
         renderEditorTags();
         setSaveStatus(
