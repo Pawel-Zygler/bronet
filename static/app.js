@@ -61,10 +61,12 @@
   const resultsCountEl = document.getElementById("results-count");
   const activeFilterHintEl = document.getElementById("active-filter-hint");
   const navMyProfileLabel = document.getElementById("nav-my-profile-label");
+  const navLogoutBtn = document.getElementById("nav-logout-btn");
   const mobileProfileLabel = document.getElementById("mobile-profile-label");
 
   // Editor Elements
   const editorHeading = document.getElementById("editor-heading");
+  const editorLogoutBtn = document.getElementById("editor-logout-btn");
   const profileForm = document.getElementById("profile-form");
   const fieldEmail = document.getElementById("field-email");
   const loadByEmailBtn = document.getElementById("load-by-email-btn");
@@ -73,6 +75,8 @@
   const togglePasswordBtn = document.getElementById("toggle-password-btn");
   const newPasswordRow = document.getElementById("new-password-row");
   const fieldNewPassword = document.getElementById("field-new-password");
+  const authLogoutRow = document.getElementById("auth-logout-row");
+  const authLogoutBtn = document.getElementById("auth-logout-btn");
   const fieldName = document.getElementById("field-name");
   const fieldCanHelp = document.getElementById("field-can-help");
   const fieldNeedHelp = document.getElementById("field-need-help");
@@ -134,6 +138,13 @@
     syncHeaderProfileLabels();
   }
 
+  function syncLogoutVisibility() {
+    const isLoggedIn = Boolean(state.myProfile || state.editingProfileId);
+    if (navLogoutBtn) navLogoutBtn.hidden = !state.myProfile;
+    if (editorLogoutBtn) editorLogoutBtn.hidden = !isLoggedIn;
+    if (authLogoutRow) authLogoutRow.hidden = !isLoggedIn;
+  }
+
   function syncHeaderProfileLabels() {
     if (state.myProfile) {
       navMyProfileLabel.textContent = `Profil (${state.myProfile.name})`;
@@ -141,6 +152,21 @@
     } else {
       navMyProfileLabel.textContent = "Profil";
       mobileProfileLabel.textContent = "Profil";
+    }
+    syncLogoutVisibility();
+  }
+
+  function logoutProfile() {
+    state.sessionPasswords = {};
+    state.editingProfileId = null;
+    state.editingHasPassword = false;
+    setMyProfile(null);
+    initEditorWithProfile(null);
+    if (window.location.pathname === "/profil") {
+      switchEditorTab("auth");
+      setSaveStatus("Wylogowano z profilu.", false, "Wylogowano");
+    } else {
+      routeCurrentPath({ forceFresh: true });
     }
   }
 
@@ -172,7 +198,7 @@
   }
 
   let mobileHintTimer = null;
-  function setSaveStatus(message, isError = false) {
+  function setSaveStatus(message, isError = false, mobileShortMessage = null) {
     saveFeedbackEl.textContent = message;
     saveFeedbackEl.classList.toggle("is-error", Boolean(isError));
 
@@ -182,7 +208,7 @@
         mobileSaveHintEl.textContent = "";
         mobileSaveHintEl.classList.remove("is-error");
       } else {
-        mobileSaveHintEl.textContent = isError ? message : "Zapisano ✓";
+        mobileSaveHintEl.textContent = mobileShortMessage || (isError ? message : "Zapisano ✓");
         mobileSaveHintEl.classList.toggle("is-error", Boolean(isError));
         if (!isError) {
           mobileHintTimer = setTimeout(() => {
@@ -632,6 +658,7 @@
       syncPasswordFieldsForProfile(null);
       renderEditorTags();
     }
+    syncLogoutVisibility();
   }
 
   // Detail View (/profil/:id)
@@ -648,7 +675,7 @@
         ${
           !isMine
             ? `<button type="button" class="text-action" id="btn-set-as-mine" title="Ustaw jako mój aktywny profil w tej przeglądarce">Ustaw jako mój profil</button>`
-            : `<span class="badge badge-self">Twój aktywny profil</span>`
+            : `<span class="badge badge-self">Twój aktywny profil</span><button type="button" class="text-action" id="btn-detail-logout">Wyloguj</button>`
         }
         <button type="button" class="text-action text-action-danger" id="btn-delete-this-profile">Usuń</button>
       `;
@@ -733,6 +760,13 @@
         setMineBtn.addEventListener("click", () => {
           setMyProfile(profile);
           renderProfileDetail(profile.id);
+        });
+      }
+
+      const detailLogoutBtn = document.getElementById("btn-detail-logout");
+      if (detailLogoutBtn) {
+        detailLogoutBtn.addEventListener("click", () => {
+          logoutProfile();
         });
       }
 
@@ -939,6 +973,14 @@
       togglePasswordBtn.textContent = nextType === "password" ? "Pokaż" : "Ukryj";
     });
 
+    [navLogoutBtn, editorLogoutBtn, authLogoutBtn].forEach((btn) => {
+      if (btn) {
+        btn.addEventListener("click", () => {
+          logoutProfile();
+        });
+      }
+    });
+
     loadByEmailBtn.addEventListener("click", async () => {
       const email = fieldEmail.value.trim().toLowerCase();
       const password = fieldPassword.value;
@@ -955,7 +997,7 @@
         }
         setMyProfile(found);
         initEditorWithProfile(found);
-        setSaveStatus(`Wczytano profil „${found.name}” ✓`, false);
+        setSaveStatus(`Wczytano profil „${found.name}” ✓`, false, "Wczytano ✓");
       } catch (err) {
         setSaveStatus(err.message || "Nie udało się wczytać profilu.", true);
         if ((err.message || "").toLowerCase().includes("hasł")) {

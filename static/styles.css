@@ -98,6 +98,26 @@ a {
   border-bottom-color: var(--text-strong);
 }
 
+.nav-btn {
+  background: none;
+  border: none;
+  border-bottom: 1.5px solid transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.nav-btn[hidden],
+.text-action[hidden],
+.auth-logout-row[hidden] {
+  display: none !important;
+}
+
+.auth-logout-row {
+  display: flex;
+  align-items: center;
+  padding-top: 4px;
+}
+
 /* Main container */
 .container {
   max-width: 680px;
