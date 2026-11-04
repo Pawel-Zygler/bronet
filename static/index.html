@@ -15,7 +15,7 @@
     <div class="topbar-inner">
       <a href="/" class="brand" data-link>bronet</a>
       <nav class="desktop-nav" aria-label="Główna nawigacja">
-        <a href="/" class="nav-link" data-nav="home" data-link>Profile i szukaj</a>
+        <a href="/" class="nav-link" data-nav="home" data-link>Szukaj chłopa</a>
         <a href="/profil" class="nav-link" data-nav="profile" data-link id="nav-my-profile-label">Profil</a>
       </nav>
     </div>
@@ -63,13 +63,15 @@
         </div>
       </div>
 
-      <div class="results-header">
-        <span id="results-count" class="results-count">Zapisane profile</span>
-        <span id="active-filter-hint" class="active-filter-hint"></span>
-      </div>
+      <div id="search-results-wrap" hidden>
+        <div class="results-header">
+          <span id="results-count" class="results-count"></span>
+          <span id="active-filter-hint" class="active-filter-hint"></span>
+        </div>
 
-      <div id="profiles-list" class="profiles-list">
-        <!-- Karty zapisanych profili -->
+        <div id="profiles-list" class="profiles-list">
+          <!-- Wyniki wyszukiwania profili -->
+        </div>
       </div>
     </section>
 
@@ -167,22 +169,15 @@
           <span id="save-feedback" class="save-feedback" role="status" aria-live="polite"></span>
         </div>
       </form>
-
-      <!-- Dopasowania z innymi profilami -->
-      <div id="my-matches-section" class="matches-section" hidden>
-        <h2 class="section-subtitle">Jak Twój profil i inne pomagają sobie nawzajem</h2>
-        <div id="my-matches-content"></div>
-      </div>
     </section>
 
     <!-- Widok 3: Szczegóły wybranego profilu (/profil/:id) -->
     <section id="view-detail" class="view" hidden>
       <div class="detail-top">
-        <a href="/" class="back-link" data-link>← Wszystkie profile</a>
+        <a href="/" class="back-link" data-link>← Szukaj chłopa</a>
         <div class="detail-actions" id="detail-actions"></div>
       </div>
       <div id="detail-card" class="detail-sheet"></div>
-      <div id="detail-matches" class="matches-section"></div>
     </section>
   </main>
 
@@ -193,7 +188,7 @@
         <circle cx="11" cy="11" r="7"></circle>
         <line x1="20" y1="20" x2="16.35" y2="16.35"></line>
       </svg>
-      <span>Szukaj</span>
+      <span>Szukaj chłopa</span>
     </a>
     <a href="/profil" class="mobile-nav-item" data-nav="profile" data-link>
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -214,3 +209,4 @@
   <script src="/static/app.js"></script>
 </body>
 </html>
+

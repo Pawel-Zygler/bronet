@@ -54,6 +54,7 @@
   const searchInput = document.getElementById("search-input");
   const searchClear = document.getElementById("search-clear");
   const popularSkillsBar = document.getElementById("popular-skills-bar");
+  const searchResultsWrapEl = document.getElementById("search-results-wrap");
   const profilesListEl = document.getElementById("profiles-list");
   const resultsCountEl = document.getElementById("results-count");
   const activeFilterHintEl = document.getElementById("active-filter-hint");
@@ -79,13 +80,10 @@
   const suggestionsNeedHelpEl = document.getElementById("suggestions-need-help");
   const saveFeedbackEl = document.getElementById("save-feedback");
   const saveProfileBtn = document.getElementById("save-profile-btn");
-  const myMatchesSection = document.getElementById("my-matches-section");
-  const myMatchesContent = document.getElementById("my-matches-content");
 
   // Detail Elements
   const detailCardEl = document.getElementById("detail-card");
   const detailActionsEl = document.getElementById("detail-actions");
-  const detailMatchesEl = document.getElementById("detail-matches");
 
   // API Helpers
   async function apiGet(url) {
@@ -215,23 +213,34 @@
 
   // Landing Page & Search
   async function refreshLandingPage() {
+    const trimmedQuery = state.searchQuery.trim();
     try {
-      const [profiles, catalog] = await Promise.all([
-        apiGet(
-          `/api/profiles?q=${encodeURIComponent(state.searchQuery)}&mode=${encodeURIComponent(
-            state.searchMode
-          )}`
-        ),
-        apiGet("/api/skills"),
-      ]);
-      state.profiles = profiles;
+      const catalog = await apiGet("/api/skills");
       state.skillsCatalog = catalog;
       renderPopularSkills();
+
+      if (!trimmedQuery) {
+        state.profiles = [];
+        searchResultsWrapEl.hidden = true;
+        profilesListEl.innerHTML = "";
+        return;
+      }
+
+      const profiles = await apiGet(
+        `/api/profiles?q=${encodeURIComponent(trimmedQuery)}&mode=${encodeURIComponent(
+          state.searchMode
+        )}`
+      );
+      state.profiles = profiles;
+      searchResultsWrapEl.hidden = false;
       renderProfilesList();
     } catch (err) {
-      profilesListEl.innerHTML = `<div class="empty-state">Nie udało się pobrać profili: ${escapeHtml(
-        err.message
-      )}</div>`;
+      if (trimmedQuery) {
+        searchResultsWrapEl.hidden = false;
+        profilesListEl.innerHTML = `<div class="empty-state">Nie udało się pobrać profili: ${escapeHtml(
+          err.message
+        )}</div>`;
+      }
     }
   }
 
@@ -370,6 +379,14 @@
   }
 
   function renderProfilesList() {
+    const trimmed = state.searchQuery.trim();
+    if (!trimmed) {
+      searchResultsWrapEl.hidden = true;
+      profilesListEl.innerHTML = "";
+      return;
+    }
+
+    searchResultsWrapEl.hidden = false;
     const count = state.profiles.length;
     const modeLabel =
       state.searchMode === "can_help"
@@ -378,22 +395,17 @@
         ? "w sekcji „Potrzebuję”"
         : "";
 
-    if (state.searchQuery.trim()) {
-      resultsCountEl.textContent = `Znalezione profile: ${count}`;
-      activeFilterHintEl.textContent = modeLabel
-        ? `Szukasz „${state.searchQuery.trim()}” ${modeLabel}`
-        : `Filtr: „${state.searchQuery.trim()}”`;
-    } else {
-      resultsCountEl.textContent = `Zapisane profile (${count})`;
-      activeFilterHintEl.textContent = modeLabel ? `Widok: ${modeLabel}` : "";
-    }
+    resultsCountEl.textContent = `Znalezione profile: ${count}`;
+    activeFilterHintEl.textContent = modeLabel
+      ? `Szukasz „${trimmed}” ${modeLabel}`
+      : `Filtr: „${trimmed}”`;
 
     if (count === 0) {
       profilesListEl.innerHTML = `
         <div class="empty-state">
-          Brak profili pasujących do wyszukiwania „${escapeHtml(state.searchQuery)}”.
+          Brak profili pasujących do wyszukiwania „${escapeHtml(trimmed)}”.
           <br />
-          <button type="button" class="text-action" id="reset-empty-search" style="margin-top:8px;">Pokaż wszystkie profile</button>
+          <button type="button" class="text-action" id="reset-empty-search" style="margin-top:8px;">Wyczyść wyszukiwanie</button>
         </div>
       `;
       const resetBtn = document.getElementById("reset-empty-search");
@@ -406,7 +418,7 @@
     }
 
     profilesListEl.innerHTML = state.profiles
-      .map((p) => renderProfileCardHtml(p, { highlightQuery: Boolean(state.searchQuery.trim()) }))
+      .map((p) => renderProfileCardHtml(p, { highlightQuery: true }))
       .join("");
   }
 
@@ -528,7 +540,6 @@
       state.editorNeedHelp = [...(profile.need_help || [])];
       saveProfileBtn.textContent = "Zapisz zmiany w profilu";
       renderEditorTags();
-      renderMatchesInto(profile.id, myMatchesSection, myMatchesContent);
     } else {
       state.editingProfileId = null;
       editorHeading.textContent = "Profil";
@@ -539,109 +550,14 @@
       state.editorCanHelp = [];
       state.editorNeedHelp = [];
       saveProfileBtn.textContent = "Zapisz profil";
-      myMatchesSection.hidden = true;
-      myMatchesContent.innerHTML = "";
       renderEditorTags();
     }
-  }
-
-  async function renderMatchesInto(profileId, containerSection, contentEl) {
-    try {
-      const data = await apiGet(`/api/profiles/${profileId}/matches`);
-      const { mutual, they_help_me, i_help_them } = data;
-
-      if (!they_help_me.length && !i_help_them.length) {
-        containerSection.hidden = false;
-        contentEl.innerHTML = `<div class="empty-state">Dodaj więcej opcji w „Umiem” lub „Potrzebuję”, aby zobaczyć kto pasuje do wymiany pomocy.</div>`;
-        return;
-      }
-
-      let html = "";
-
-      if (mutual.length > 0) {
-        html += `
-          <div class="match-group">
-            <h3 class="match-group-title">Wzajemna wymiana 1:1 (${mutual.length})</h3>
-            <div class="profiles-list">
-              ${mutual.map((m) => renderMatchCard(m, "mutual")).join("")}
-            </div>
-          </div>
-        `;
-      }
-
-      if (they_help_me.length > 0) {
-        html += `
-          <div class="match-group">
-            <h3 class="match-group-title">Mogą pomóc temu profilowi (${they_help_me.length})</h3>
-            <div class="profiles-list">
-              ${they_help_me.map((m) => renderMatchCard(m, "they_help")).join("")}
-            </div>
-          </div>
-        `;
-      }
-
-      if (i_help_them.length > 0) {
-        html += `
-          <div class="match-group">
-            <h3 class="match-group-title">Ten profil może pomóc im (${i_help_them.length})</h3>
-            <div class="profiles-list">
-              ${i_help_them.map((m) => renderMatchCard(m, "i_help")).join("")}
-            </div>
-          </div>
-        `;
-      }
-
-      containerSection.hidden = false;
-      contentEl.innerHTML = html;
-    } catch (_) {
-      containerSection.hidden = true;
-    }
-  }
-
-  function renderMatchCard(matchItem, kind) {
-    const p = matchItem.profile;
-    const theyList = matchItem.they_can_help_with || [];
-    const iList = matchItem.i_can_help_with || [];
-
-    const theyHtml = theyList.length
-      ? `<div class="card-row"><span class="card-row-label"><strong>Pomoże z:</strong></span> ${theyList
-          .map((s) => `<span class="skill-tag is-highlighted">${escapeHtml(s)}</span>`)
-          .join("")}</div>`
-      : "";
-
-    const iHtml = iList.length
-      ? `<div class="card-row"><span class="card-row-label"><strong>Potrzebuje od Ciebie:</strong></span> ${iList
-          .map((s) => `<span class="skill-tag is-need-highlighted">${escapeHtml(s)}</span>`)
-          .join("")}</div>`
-      : "";
-
-    const badge =
-      kind === "mutual"
-        ? `<span class="badge badge-mutual">Wymiana 1:1</span>`
-        : kind === "they_help"
-        ? `<span class="badge badge-helps-me">Umiem → Potrzebuję</span>`
-        : `<span class="badge badge-i-help">Możesz pomóc</span>`;
-
-    return `
-      <article class="profile-card">
-        <div class="card-top">
-          <div class="card-name-group">
-            <a href="/profil/${p.id}" class="card-name" data-link>${escapeHtml(p.name)}</a>
-            ${badge}
-          </div>
-          <a href="/profil/${p.id}" class="card-open-link" data-link>Otwórz profil →</a>
-        </div>
-        ${theyHtml}
-        ${iHtml}
-      </article>
-    `;
   }
 
   // Detail View (/profil/:id)
   async function renderProfileDetail(profileId) {
     detailCardEl.innerHTML = `<p class="label-sub">Ładowanie profilu...</p>`;
     detailActionsEl.innerHTML = "";
-    detailMatchesEl.innerHTML = "";
 
     try {
       const profile = await apiGet(`/api/profiles/${profileId}`);
@@ -724,12 +640,6 @@
         }
         navigate("/");
       });
-
-      // Matches for this profile
-      const wrapper = document.createElement("div");
-      detailMatchesEl.innerHTML = `<h2 class="section-subtitle">Powiązane profile (kto komu pomoże)</h2>`;
-      detailMatchesEl.appendChild(wrapper);
-      await renderMatchesInto(profile.id, detailMatchesEl, wrapper);
     } catch (err) {
       detailCardEl.innerHTML = `<div class="empty-state">Nie znaleziono profilu (${escapeHtml(
         err.message
@@ -938,7 +848,6 @@
         btnCreateFresh.hidden = false;
         renderEditorTags();
         saveFeedbackEl.textContent = `Zapisano profil „${saved.name}” ✓`;
-        await renderMatchesInto(saved.id, myMatchesSection, myMatchesContent);
       } catch (err) {
         saveFeedbackEl.textContent = err.message || "Nie udało się zapisać profilu.";
         saveFeedbackEl.classList.add("is-error");
@@ -955,3 +864,4 @@
     await routeCurrentPath();
   })();
 })();
+

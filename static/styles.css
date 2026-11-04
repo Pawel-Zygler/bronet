@@ -206,9 +206,13 @@ a {
 
 /* Search Box */
 .search-section {
-  margin-bottom: 28px;
-  padding-bottom: 22px;
-  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+#search-results-wrap {
+  margin-top: 24px;
+  padding-top: 22px;
+  border-top: 1px solid var(--border);
 }
 
 .search-box {
@@ -812,3 +816,4 @@ a {
     font-weight: 600;
   }
 }
+
