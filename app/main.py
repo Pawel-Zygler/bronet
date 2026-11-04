@@ -1,21 +1,22 @@
 from pathlib import Path
-from typing import List
-from fastapi import FastAPI, HTTPException, Query
+from typing import List, Optional
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.database import (
+    ProfileAuthError,
+    authenticate_profile_by_email,
     create_profile,
     delete_profile,
     get_matches_for_profile,
     get_profile,
-    get_profile_by_email,
     get_skills_catalog,
     init_db,
     list_profiles,
     update_profile,
 )
-from app.models import ProfilePayload, ProfileResponse
+from app.models import LoginPayload, ProfilePayload, ProfileResponse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = BASE_DIR / "static"
@@ -23,7 +24,7 @@ STATIC_DIR = BASE_DIR / "static"
 app = FastAPI(
     title="Bronet API",
     description="Minimalistyczna platforma wymiany umiejętności — jeden profil pomaga drugiemu.",
-    version="1.1.0",
+    version="1.2.0",
 )
 
 
@@ -47,9 +48,23 @@ def api_list_profiles(
     return list_profiles(query=q, mode=effective_mode)
 
 
+@app.post("/api/profiles/login", response_model=ProfileResponse)
+def api_login_profile(payload: LoginPayload) -> dict:
+    try:
+        profile = authenticate_profile_by_email(payload.email, payload.password or "")
+    except ProfileAuthError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+    if not profile:
+        raise HTTPException(status_code=404, detail="Nie znaleziono profilu dla podanego adresu e-mail.")
+    return profile
+
+
 @app.get("/api/profiles/by-email", response_model=ProfileResponse)
 def api_get_profile_by_email(email: str = Query(..., min_length=3)) -> dict:
-    profile = get_profile_by_email(email)
+    try:
+        profile = authenticate_profile_by_email(email, password="")
+    except ProfileAuthError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
     if not profile:
         raise HTTPException(status_code=404, detail="Nie znaleziono profilu dla podanego adresu e-mail.")
     return profile
@@ -59,7 +74,10 @@ def api_get_profile_by_email(email: str = Query(..., min_length=3)) -> dict:
 def api_create_profile(payload: ProfilePayload) -> dict:
     if not payload.name.strip():
         raise HTTPException(status_code=422, detail="Imię nie może być puste.")
-    return create_profile(payload.dict())
+    try:
+        return create_profile(payload.dict())
+    except ProfileAuthError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
 
 
 @app.get("/api/profiles/{profile_id}", response_model=ProfileResponse)
@@ -74,15 +92,24 @@ def api_get_profile(profile_id: int) -> dict:
 def api_update_profile(profile_id: int, payload: ProfilePayload) -> dict:
     if not payload.name.strip():
         raise HTTPException(status_code=422, detail="Imię nie może być puste.")
-    updated = update_profile(profile_id, payload.dict())
+    try:
+        updated = update_profile(profile_id, payload.dict())
+    except ProfileAuthError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
     if not updated:
         raise HTTPException(status_code=404, detail="Nie znaleziono profilu.")
     return updated
 
 
 @app.delete("/api/profiles/{profile_id}")
-def api_delete_profile(profile_id: int) -> dict:
-    deleted = delete_profile(profile_id)
+def api_delete_profile(
+    profile_id: int,
+    x_profile_password: Optional[str] = Header(default=""),
+) -> dict:
+    try:
+        deleted = delete_profile(profile_id, password=x_profile_password or "")
+    except ProfileAuthError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
     if not deleted:
         raise HTTPException(status_code=404, detail="Nie znaleziono profilu.")
     return {"deleted": True, "id": profile_id}

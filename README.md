@@ -1,4 +1,4 @@
-# Bronet — Jeden profil pomaga drugiemu
+# Bronet — Jeden chłop pomaga drugiemu
 
 Minimalistyczna aplikacja internetowa (Web + Mobile), w której użytkownicy zakładają profile przypisane do adresu e-mail, zapisują swoje umiejętności (**Umiem / Potrafię pomóc z**) oraz potrzeby (**Potrzebuję / Szukam pomocy z**) i wyszukują ludzi po umiejętnościach.
 
@@ -7,21 +7,7 @@ Minimalistyczna aplikacja internetowa (Web + Mobile), w której użytkownicy zak
 - **Strona główna („Szukaj chłopa”):** https://bronet-production-10e7.up.railway.app
 - **Tworzenie / wczytywanie profilu na e-mail:** https://bronet-production-10e7.up.railway.app/profil
 
-## Funkcjonalności
 
-- **Minimalistyczny interfejs Web & Mobile** — czysty, lekki design, dolny pasek nawigacji mobilnej i manifest PWA.
-- **Profile na e-mail („na start”)** — zapis nowego profilu pod adresem e-mail oraz szybkie wczytanie swojego profilu na dowolnym urządzeniu (telefon / komputer) przyciskiem **Wczytaj po mailu**.
-- **Trwały zapis w bazie SQLite** poprzez REST API (`FastAPI`), z automatyczną obsługą wolumenu produkcyjnego (`RAILWAY_VOLUME_MOUNT_PATH`).
-- **Sekcje profilu**:
-  - `E-mail` (do zapisu, edycji i kontaktu mailowego `mailto:`)
-  - `Imię`
-  - `Umiem (Potrafię pomóc z)` — dodawanie i zapisywanie opcji w profilu + szybkie podpowiedzi z bazy
-  - `Potrzebuję (Szukam pomocy z)` — dodawanie i zapisywanie potrzeb w profilu + szybkie podpowiedzi
-  - `Kontakt` oraz krótki opis `O mnie` (opcjonalnie)
-- **Wyszukiwarka „Szukaj chłopa” na stronie głównej**:
-  - Wyszukiwanie po umiejętnościach i imionach (odporne na brak polskich znaków — np. `zwiazki` znajduje `związki`).
-  - Filtrowanie po zakresie: *Wszystkie*, *Umiem (kto pomoże)*, *Potrzebuję (kto szuka)*.
-  - Klikalne popularne umiejętności pobierane dynamicznie z zapisanych profili.
 
 ## Uruchomienie lokalne
 

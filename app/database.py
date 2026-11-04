@@ -1,4 +1,7 @@
+import hashlib
+import hmac
 import os
+import secrets
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,6 +24,10 @@ PL_CHAR_MAP = str.maketrans(
 )
 
 
+class ProfileAuthError(Exception):
+    """Raised when a profile requires a password or the provided password is invalid."""
+
+
 def get_db_path() -> Path:
     env_path = os.environ.get("BRONET_DB_PATH")
     if env_path:
@@ -39,6 +46,35 @@ def normalize_text(value: str) -> str:
 
 def normalize_email(value: Optional[str]) -> str:
     return str(value or "").strip().lower()
+
+
+def hash_password(raw_password: str) -> str:
+    """Hash any non-empty password with PBKDF2-HMAC-SHA256 (no complexity restrictions)."""
+    if not raw_password:
+        return ""
+    salt = secrets.token_hex(16)
+    dk = hashlib.pbkdf2_hmac(
+        "sha256",
+        raw_password.encode("utf-8"),
+        salt.encode("ascii"),
+        120_000,
+    ).hex()
+    return f"{salt}${dk}"
+
+
+def verify_password(raw_password: str, stored_hash: str) -> bool:
+    if not stored_hash:
+        return True
+    if not raw_password or "$" not in stored_hash:
+        return False
+    salt, expected_dk = stored_hash.split("$", 1)
+    actual_dk = hashlib.pbkdf2_hmac(
+        "sha256",
+        raw_password.encode("utf-8"),
+        salt.encode("ascii"),
+        120_000,
+    ).hex()
+    return hmac.compare_digest(actual_dk, expected_dk)
 
 
 def clean_skills(raw_skills: List[str]) -> List[str]:
@@ -122,6 +158,7 @@ def init_db(seed: bool = True) -> None:
                 name TEXT NOT NULL,
                 name_normalized TEXT NOT NULL,
                 email TEXT NOT NULL DEFAULT '',
+                password_hash TEXT NOT NULL DEFAULT '',
                 contact TEXT NOT NULL DEFAULT '',
                 bio TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL,
@@ -142,10 +179,11 @@ def init_db(seed: bool = True) -> None:
                 ON profile_skills(kind, skill_normalized);
             """
         )
-        # Ensure backward-compatible migration if `email` column was absent
         cols = {row["name"] for row in conn.execute("PRAGMA table_info(profiles)").fetchall()}
         if "email" not in cols:
             conn.execute("ALTER TABLE profiles ADD COLUMN email TEXT NOT NULL DEFAULT '';")
+        if "password_hash" not in cols:
+            conn.execute("ALTER TABLE profiles ADD COLUMN password_hash TEXT NOT NULL DEFAULT '';")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);")
 
         if seed:
@@ -163,19 +201,22 @@ def _insert_profile_in_tx(conn: sqlite3.Connection, data: Dict[str, Any]) -> int
     now = _now_iso()
     name = str(data.get("name") or "").strip()
     email = normalize_email(data.get("email"))
+    raw_password = str(data.get("password") or "")
+    pwd_hash = hash_password(raw_password) if raw_password else ""
     contact = str(data.get("contact") or "").strip()
     if not contact and email:
         contact = email
 
     cur = conn.execute(
         """
-        INSERT INTO profiles (name, name_normalized, email, contact, bio, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO profiles (name, name_normalized, email, password_hash, contact, bio, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             name,
             normalize_text(name),
             email,
+            pwd_hash,
             contact,
             str(data.get("bio") or "").strip(),
             now,
@@ -238,11 +279,14 @@ def _hydrate_profiles(conn: sqlite3.Connection, profile_rows: List[sqlite3.Row])
     hydrated = []
     for r in profile_rows:
         pid = r["id"]
+        row_keys = r.keys()
+        pwd_hash = r["password_hash"] if "password_hash" in row_keys else ""
         hydrated.append(
             {
                 "id": pid,
                 "name": r["name"],
-                "email": r["email"] if "email" in r.keys() else "",
+                "email": r["email"] if "email" in row_keys else "",
+                "has_password": bool(pwd_hash),
                 "can_help": by_profile[pid]["can_help"],
                 "need_help": by_profile[pid]["need_help"],
                 "contact": r["contact"],
@@ -309,7 +353,11 @@ def get_profile(profile_id: int) -> Optional[Dict[str, Any]]:
         return _hydrate_profiles(conn, [row])[0]
 
 
-def get_profile_by_email(email: str) -> Optional[Dict[str, Any]]:
+def authenticate_profile_by_email(email: str, password: str = "") -> Optional[Dict[str, Any]]:
+    """
+    Load a profile by email, verifying password if the profile has one set.
+    Raises ProfileAuthError if the profile is password-protected and password doesn't match.
+    """
     cleaned = normalize_email(email)
     if not cleaned:
         return None
@@ -320,15 +368,28 @@ def get_profile_by_email(email: str) -> Optional[Dict[str, Any]]:
         ).fetchone()
         if not row:
             return None
+        stored_hash = row["password_hash"] or ""
+        if stored_hash and not verify_password(password, stored_hash):
+            if not password:
+                raise ProfileAuthError("Ten profil jest chroniony hasłem — wpisz hasło i kliknij Wczytaj.")
+            raise ProfileAuthError("Nieprawidłowe hasło dla tego profilu.")
         return _hydrate_profiles(conn, [row])[0]
+
+
+def get_profile_by_email(email: str) -> Optional[Dict[str, Any]]:
+    return authenticate_profile_by_email(email, password="")
 
 
 def create_profile(data: Dict[str, Any]) -> Dict[str, Any]:
     email = normalize_email(data.get("email"))
     if email:
-        existing = get_profile_by_email(email)
-        if existing:
-            updated = update_profile(existing["id"], data)
+        with get_connection() as conn:
+            existing_row = conn.execute(
+                "SELECT id FROM profiles WHERE email = ? ORDER BY updated_at DESC, id DESC LIMIT 1",
+                (email,),
+            ).fetchone()
+        if existing_row:
+            updated = update_profile(existing_row["id"], data)
             if updated:
                 return updated
     with get_connection() as conn:
@@ -339,9 +400,28 @@ def create_profile(data: Dict[str, Any]) -> Dict[str, Any]:
 
 def update_profile(profile_id: int, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     with get_connection() as conn:
-        existing = conn.execute("SELECT id FROM profiles WHERE id = ?", (profile_id,)).fetchone()
+        existing = conn.execute(
+            "SELECT id, password_hash FROM profiles WHERE id = ?",
+            (profile_id,),
+        ).fetchone()
         if not existing:
             return None
+
+        existing_hash = existing["password_hash"] or ""
+        provided_password = str(data.get("password") or "")
+        new_password = str(data.get("new_password") or "")
+
+        if existing_hash:
+            if not verify_password(provided_password, existing_hash):
+                if not provided_password:
+                    raise ProfileAuthError("Ten profil ma ustawione hasło — podaj hasło, aby zapisać zmiany.")
+                raise ProfileAuthError("Nieprawidłowe hasło — nie można zapisać zmian.")
+            effective_hash = hash_password(new_password) if new_password else existing_hash
+        else:
+            # Profile had no password yet — allow setting one via either `password` or `new_password`
+            chosen_pw = new_password or provided_password
+            effective_hash = hash_password(chosen_pw) if chosen_pw else ""
+
         now = _now_iso()
         name = str(data.get("name") or "").strip()
         email = normalize_email(data.get("email"))
@@ -352,13 +432,14 @@ def update_profile(profile_id: int, data: Dict[str, Any]) -> Optional[Dict[str, 
         conn.execute(
             """
             UPDATE profiles
-            SET name = ?, name_normalized = ?, email = ?, contact = ?, bio = ?, updated_at = ?
+            SET name = ?, name_normalized = ?, email = ?, password_hash = ?, contact = ?, bio = ?, updated_at = ?
             WHERE id = ?
             """,
             (
                 name,
                 normalize_text(name),
                 email,
+                effective_hash,
                 contact,
                 str(data.get("bio") or "").strip(),
                 now,
@@ -375,8 +456,19 @@ def update_profile(profile_id: int, data: Dict[str, Any]) -> Optional[Dict[str, 
         return _hydrate_profiles(conn, [row])[0]
 
 
-def delete_profile(profile_id: int) -> bool:
+def delete_profile(profile_id: int, password: str = "") -> bool:
     with get_connection() as conn:
+        existing = conn.execute(
+            "SELECT id, password_hash FROM profiles WHERE id = ?",
+            (profile_id,),
+        ).fetchone()
+        if not existing:
+            return False
+        stored_hash = existing["password_hash"] or ""
+        if stored_hash and not verify_password(password, stored_hash):
+            if not password:
+                raise ProfileAuthError("Ten profil jest chroniony hasłem — podaj hasło, aby go usunąć.")
+            raise ProfileAuthError("Nieprawidłowe hasło — nie można usunąć profilu.")
         cur = conn.execute("DELETE FROM profiles WHERE id = ?", (profile_id,))
         return cur.rowcount > 0
 

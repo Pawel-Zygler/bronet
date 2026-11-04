@@ -36,6 +36,8 @@
     myProfileId: Number(localStorage.getItem(STORAGE_KEY_MY_PROFILE)) || null,
     myProfile: null,
     editingProfileId: null, // null = creating new profile
+    editingHasPassword: false,
+    sessionPasswords: {}, // in-memory only: { [profileId]: password }
     editorCanHelp: [],
     editorNeedHelp: [],
     searchQuery: "",
@@ -69,6 +71,11 @@
   const profileForm = document.getElementById("profile-form");
   const fieldEmail = document.getElementById("field-email");
   const loadByEmailBtn = document.getElementById("load-by-email-btn");
+  const labelPassword = document.getElementById("label-password");
+  const fieldPassword = document.getElementById("field-password");
+  const togglePasswordBtn = document.getElementById("toggle-password-btn");
+  const newPasswordRow = document.getElementById("new-password-row");
+  const fieldNewPassword = document.getElementById("field-new-password");
   const fieldName = document.getElementById("field-name");
   const fieldCanHelp = document.getElementById("field-can-help");
   const fieldNeedHelp = document.getElementById("field-need-help");
@@ -97,12 +104,13 @@
     return res.json();
   }
 
-  async function apiSend(url, method, body) {
+  async function apiSend(url, method, body, extraHeaders = {}) {
     const res = await fetch(url, {
       method,
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
+        ...extraHeaders,
       },
       body: body ? JSON.stringify(body) : undefined,
     });
@@ -525,6 +533,31 @@
       : "";
   }
 
+  function syncPasswordFieldsForProfile(profile) {
+    fieldNewPassword.value = "";
+    if (!profile) {
+      state.editingHasPassword = false;
+      labelPassword.innerHTML = `Hasło <span class="label-sub">(opcjonalnie):</span>`;
+      fieldPassword.placeholder = "dowolne hasło bez specjalnych wymagań";
+      fieldPassword.value = "";
+      newPasswordRow.hidden = true;
+      return;
+    }
+
+    state.editingHasPassword = Boolean(profile.has_password);
+    if (profile.has_password) {
+      labelPassword.innerHTML = `Hasło profilu:`;
+      fieldPassword.placeholder = "podaj hasło profilu, aby zapisać zmiany";
+      fieldPassword.value = state.sessionPasswords[profile.id] || "";
+      newPasswordRow.hidden = false;
+    } else {
+      labelPassword.innerHTML = `Dodaj hasło <span class="label-sub">(opcjonalnie):</span>`;
+      fieldPassword.placeholder = "wpisz dowolne hasło, aby zabezpieczyć profil";
+      fieldPassword.value = "";
+      newPasswordRow.hidden = true;
+    }
+  }
+
   function initEditorWithProfile(profile) {
     saveFeedbackEl.textContent = "";
     saveFeedbackEl.classList.remove("is-error");
@@ -542,6 +575,7 @@
       state.editorCanHelp = [...(profile.can_help || [])];
       state.editorNeedHelp = [...(profile.need_help || [])];
       saveProfileBtn.textContent = "Zapisz zmiany w profilu";
+      syncPasswordFieldsForProfile(profile);
       renderEditorTags();
     } else {
       state.editingProfileId = null;
@@ -554,6 +588,7 @@
       state.editorCanHelp = [];
       state.editorNeedHelp = [];
       saveProfileBtn.textContent = "Zapisz profil";
+      syncPasswordFieldsForProfile(null);
       renderEditorTags();
     }
   }
@@ -647,12 +682,30 @@
       }
 
       document.getElementById("btn-delete-this-profile").addEventListener("click", async () => {
-        if (!window.confirm(`Czy na pewno usunąć profil „${profile.name}”?`)) return;
-        await apiSend(`/api/profiles/${profile.id}`, "DELETE");
-        if (state.myProfile && state.myProfile.id === profile.id) {
-          setMyProfile(null);
+        let pwd = state.sessionPasswords[profile.id] || "";
+        if (profile.has_password && !pwd) {
+          const entered = window.prompt(`Profil „${profile.name}” jest chroniony hasłem. Podaj hasło, aby go usunąć:`);
+          if (entered === null) return;
+          pwd = entered;
+        } else if (!window.confirm(`Czy na pewno usunąć profil „${profile.name}”?`)) {
+          return;
         }
-        navigate("/");
+
+        try {
+          await apiSend(
+            `/api/profiles/${profile.id}`,
+            "DELETE",
+            null,
+            pwd ? { "X-Profile-Password": pwd } : {}
+          );
+          delete state.sessionPasswords[profile.id];
+          if (state.myProfile && state.myProfile.id === profile.id) {
+            setMyProfile(null);
+          }
+          navigate("/");
+        } catch (err) {
+          window.alert(err.message || "Nie udało się usunąć profilu.");
+        }
       });
     } catch (err) {
       detailCardEl.innerHTML = `<div class="empty-state">Nie znaleziono profilu (${escapeHtml(
@@ -813,8 +866,16 @@
     wireSkillInput(fieldCanHelp, addCanHelpBtn, state.editorCanHelp);
     wireSkillInput(fieldNeedHelp, addNeedHelpBtn, state.editorNeedHelp);
 
+    togglePasswordBtn.addEventListener("click", () => {
+      const nextType = fieldPassword.type === "password" ? "text" : "password";
+      fieldPassword.type = nextType;
+      fieldNewPassword.type = nextType;
+      togglePasswordBtn.textContent = nextType === "password" ? "Pokaż" : "Ukryj";
+    });
+
     loadByEmailBtn.addEventListener("click", async () => {
       const email = fieldEmail.value.trim().toLowerCase();
+      const password = fieldPassword.value;
       saveFeedbackEl.classList.remove("is-error");
       if (!email || !email.includes("@")) {
         saveFeedbackEl.textContent = "Wpisz poprawny adres e-mail, aby wczytać profil.";
@@ -823,13 +884,19 @@
         return;
       }
       try {
-        const found = await apiGet(`/api/profiles/by-email?email=${encodeURIComponent(email)}`);
+        const found = await apiSend("/api/profiles/login", "POST", { email, password });
+        if (found.has_password && password) {
+          state.sessionPasswords[found.id] = password;
+        }
         setMyProfile(found);
         initEditorWithProfile(found);
         saveFeedbackEl.textContent = `Wczytano profil „${found.name}” (${found.email}) ✓`;
       } catch (err) {
-        saveFeedbackEl.textContent = "Brak profilu na ten e-mail — wypełnij dane poniżej i kliknij Zapisz profil.";
+        saveFeedbackEl.textContent = err.message || "Nie udało się wczytać profilu.";
         saveFeedbackEl.classList.add("is-error");
+        if ((err.message || "").toLowerCase().includes("hasł")) {
+          fieldPassword.focus();
+        }
       }
     });
 
@@ -866,9 +933,21 @@
         return;
       }
 
+      const password = fieldPassword.value;
+      const newPassword = fieldNewPassword.value;
+
+      if (state.editingProfileId && state.editingHasPassword && !password) {
+        saveFeedbackEl.textContent = "Podaj hasło profilu, aby zapisać zmiany.";
+        saveFeedbackEl.classList.add("is-error");
+        fieldPassword.focus();
+        return;
+      }
+
       const payload = {
         name,
         email,
+        password,
+        new_password: newPassword,
         can_help: state.editorCanHelp,
         need_help: state.editorNeedHelp,
         contact: fieldContact.value.trim(),
@@ -884,16 +963,27 @@
           saved = await apiSend("/api/profiles", "POST", payload);
         }
 
+        const effectivePw = newPassword || password;
+        if (saved.has_password && effectivePw) {
+          state.sessionPasswords[saved.id] = effectivePw;
+        }
+
         setMyProfile(saved);
         state.editingProfileId = saved.id;
         state.skillsCatalog = await apiGet("/api/skills");
         saveProfileBtn.textContent = "Zapisz zmiany w profilu";
         btnCreateFresh.hidden = false;
+        syncPasswordFieldsForProfile(saved);
         renderEditorTags();
-        saveFeedbackEl.textContent = `Zapisano profil „${saved.name}” ✓`;
+        saveFeedbackEl.textContent = saved.has_password
+          ? `Zapisano profil „${saved.name}” (chroniony hasłem) ✓`
+          : `Zapisano profil „${saved.name}” ✓`;
       } catch (err) {
         saveFeedbackEl.textContent = err.message || "Nie udało się zapisać profilu.";
         saveFeedbackEl.classList.add("is-error");
+        if ((err.message || "").toLowerCase().includes("hasł")) {
+          fieldPassword.focus();
+        }
       } finally {
         saveProfileBtn.disabled = false;
       }

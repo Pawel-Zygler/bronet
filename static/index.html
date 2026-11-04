@@ -99,7 +99,42 @@
               placeholder="twój@email.pl (do zapisu i logowania profilu)"
               maxlength="160"
             />
-            <button type="button" class="inline-add-btn" id="load-by-email-btn" title="Masz już profil na ten e-mail? Wczytaj go">Wczytaj po mailu</button>
+            <button type="button" class="inline-add-btn" id="load-by-email-btn" title="Masz już profil na ten e-mail? Wczytaj go">Zaloguj / Wczytaj</button>
+          </div>
+        </div>
+
+        <div class="sheet-line sheet-line-wrap">
+          <label for="field-password" class="sheet-label" id="label-password">
+            Hasło <span class="label-sub">(opcjonalnie):</span>
+          </label>
+          <div class="inline-entry-group">
+            <input
+              type="password"
+              id="field-password"
+              name="password"
+              class="inline-input"
+              placeholder="dowolne hasło bez specjalnych wymagań"
+              maxlength="200"
+              autocomplete="current-password"
+            />
+            <button type="button" class="inline-add-btn" id="toggle-password-btn">Pokaż</button>
+          </div>
+        </div>
+
+        <div class="sheet-line sheet-line-wrap" id="new-password-row" hidden>
+          <label for="field-new-password" class="sheet-label">
+            Nowe hasło <span class="label-sub">(opcjonalnie):</span>
+          </label>
+          <div class="inline-entry-group">
+            <input
+              type="password"
+              id="field-new-password"
+              name="new_password"
+              class="inline-input"
+              placeholder="zostaw puste, jeśli nie zmieniasz hasła"
+              maxlength="200"
+              autocomplete="new-password"
+            />
           </div>
         </div>
 
