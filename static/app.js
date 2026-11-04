@@ -60,7 +60,6 @@
   const profilesListEl = document.getElementById("profiles-list");
   const resultsCountEl = document.getElementById("results-count");
   const activeFilterHintEl = document.getElementById("active-filter-hint");
-  const heroProfileCta = document.getElementById("hero-profile-cta");
   const navMyProfileLabel = document.getElementById("nav-my-profile-label");
   const mobileProfileLabel = document.getElementById("mobile-profile-label");
 
@@ -137,11 +136,9 @@
     if (state.myProfile) {
       navMyProfileLabel.textContent = `Profil (${state.myProfile.name})`;
       mobileProfileLabel.textContent = state.myProfile.name;
-      heroProfileCta.textContent = `Twój profil: ${state.myProfile.name} →`;
     } else {
       navMyProfileLabel.textContent = "Profil";
       mobileProfileLabel.textContent = "Profil";
-      heroProfileCta.textContent = "Utwórz swój profil";
     }
   }
 
