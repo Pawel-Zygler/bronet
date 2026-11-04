@@ -61,7 +61,6 @@
   const resultsCountEl = document.getElementById("results-count");
   const activeFilterHintEl = document.getElementById("active-filter-hint");
   const heroProfileCta = document.getElementById("hero-profile-cta");
-  const heroNewProfileBtn = document.getElementById("hero-new-profile-btn");
   const navMyProfileLabel = document.getElementById("nav-my-profile-label");
   const mobileProfileLabel = document.getElementById("mobile-profile-label");
 
@@ -139,12 +138,10 @@
       navMyProfileLabel.textContent = `Profil (${state.myProfile.name})`;
       mobileProfileLabel.textContent = state.myProfile.name;
       heroProfileCta.textContent = `Twój profil: ${state.myProfile.name} →`;
-      heroNewProfileBtn.hidden = false;
     } else {
       navMyProfileLabel.textContent = "Profil";
       mobileProfileLabel.textContent = "Profil";
       heroProfileCta.textContent = "Utwórz swój profil";
-      heroNewProfileBtn.hidden = true;
     }
   }
 
@@ -827,7 +824,6 @@
     // New profile buttons
     const openFreshEditor = () => navigate("/profil", { forceFresh: true });
     btnCreateFresh.addEventListener("click", openFreshEditor);
-    heroNewProfileBtn.addEventListener("click", openFreshEditor);
     document.getElementById("mobile-new-profile-btn").addEventListener("click", openFreshEditor);
 
     // Inline skill entry handlers (Enter or comma)
