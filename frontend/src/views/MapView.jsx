@@ -8,10 +8,16 @@ import {
 } from "../utils/cities";
 import { normalizeText } from "../utils/text";
 
+const MAP_API_KEY =
+  (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_MAP_API_KEY) ||
+  "";
+
 const TILE_PROVIDERS = {
   voyager: {
     name: "Kolorowa (Apple/Google style)",
-    url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+    url: `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png${
+      MAP_API_KEY ? `?api_key=${MAP_API_KEY}` : ""
+    }`,
     attribution:
       '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/" target="_blank" rel="noreferrer">CARTO</a>',
     subdomains: "abcd",
@@ -27,7 +33,9 @@ const TILE_PROVIDERS = {
   },
   dark: {
     name: "Ciemna (Dark Matter)",
-    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    url: `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png${
+      MAP_API_KEY ? `?api_key=${MAP_API_KEY}` : ""
+    }`,
     attribution:
       '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/" target="_blank" rel="noreferrer">CARTO</a>',
     subdomains: "abcd",
