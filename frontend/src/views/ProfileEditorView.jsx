@@ -461,15 +461,11 @@ export function ProfileEditorView({
         <h1 className="page-title" id="editor-heading">
           {!isLoggedIn && !showLoginFront ? "Załóż profil" : "Profil"}
         </h1>
-        {isLoggedIn ? (
-          <button type="button" className="text-action" onClick={handleLogoutClick}>
-            Wyloguj
-          </button>
-        ) : !showLoginFront ? (
+        {!isLoggedIn && !showLoginFront && (
           <button type="button" className="text-action" onClick={handleBackToLogin}>
             ← Logowanie
           </button>
-        ) : null}
+        )}
       </div>
 
       {showLoginFront ? (
