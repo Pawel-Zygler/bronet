@@ -22,8 +22,8 @@ export function HomeView({
     searchMode === "can_help"
       ? skillsCatalog.can_help
       : searchMode === "need_help"
-      ? skillsCatalog.need_help
-      : skillsCatalog.all;
+        ? skillsCatalog.need_help
+        : skillsCatalog.all;
 
   const popularItems = (popularSource || []).slice(0, 12);
 
@@ -51,8 +51,8 @@ export function HomeView({
     searchMode === "can_help"
       ? "w sekcji „Umiem”"
       : searchMode === "need_help"
-      ? "w sekcji „Potrzebuję”"
-      : "";
+        ? "w sekcji „Potrzebuję”"
+        : "";
 
   return (
     <section id="view-home" className="view view-animate" aria-labelledby="home-heading">

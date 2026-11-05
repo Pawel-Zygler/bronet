@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import json
 import os
 import secrets
 import sqlite3
@@ -193,9 +194,33 @@ def init_db(seed: bool = True) -> None:
 
         if seed:
             row = conn.execute("SELECT COUNT(*) AS cnt FROM profiles").fetchone()
-            if row and row["cnt"] == 0:
+            current_count = row["cnt"] if row else 0
+            if current_count == 0:
                 for item in SEED_PROFILES:
                     _insert_profile_in_tx(conn, item)
+
+            seed_json_path = BASE_DIR / "app" / "seed_profiles.json"
+            if seed_json_path.exists():
+                cnt_row = conn.execute("SELECT COUNT(*) AS cnt FROM profiles").fetchone()
+                if cnt_row and cnt_row["cnt"] < 1500:
+                    existing_emails = {
+                        r["email"]
+                        for r in conn.execute(
+                            "SELECT email FROM profiles WHERE email != ''"
+                        ).fetchall()
+                    }
+                    try:
+                        with open(seed_json_path, "r", encoding="utf-8") as f:
+                            extra_profiles = json.load(f)
+                        for item in extra_profiles:
+                            em = normalize_email(item.get("email"))
+                            if em and em in existing_emails:
+                                continue
+                            _insert_profile_in_tx(conn, item)
+                            if em:
+                                existing_emails.add(em)
+                    except Exception as err:
+                        print(f"Warning: Failed to load seed_profiles.json: {err}")
 
 
 def _now_iso() -> str:
@@ -206,8 +231,10 @@ def _insert_profile_in_tx(conn: sqlite3.Connection, data: Dict[str, Any]) -> int
     now = _now_iso()
     name = str(data.get("name") or "").strip()
     email = normalize_email(data.get("email"))
-    raw_password = str(data.get("password") or "")
-    pwd_hash = hash_password(raw_password) if raw_password else ""
+    pwd_hash = data.get("password_hash")
+    if not pwd_hash:
+        raw_password = str(data.get("password") or "")
+        pwd_hash = hash_password(raw_password) if raw_password else ""
     contact = str(data.get("contact") or "").strip()
     if not contact and email:
         contact = email
@@ -264,22 +291,24 @@ def _hydrate_profiles(conn: sqlite3.Connection, profile_rows: List[sqlite3.Row])
     if not profile_rows:
         return []
     ids = [r["id"] for r in profile_rows]
-    placeholders = ",".join("?" for _ in ids)
-    skill_rows = conn.execute(
-        f"""
-        SELECT profile_id, kind, skill
-        FROM profile_skills
-        WHERE profile_id IN ({placeholders})
-        ORDER BY id ASC
-        """,
-        ids,
-    ).fetchall()
-
     by_profile: Dict[int, Dict[str, List[str]]] = {
         pid: {"can_help": [], "need_help": []} for pid in ids
     }
-    for sr in skill_rows:
-        by_profile[sr["profile_id"]][sr["kind"]].append(sr["skill"])
+    chunk_size = 500
+    for i in range(0, len(ids), chunk_size):
+        chunk = ids[i : i + chunk_size]
+        placeholders = ",".join("?" for _ in chunk)
+        skill_rows = conn.execute(
+            f"""
+            SELECT profile_id, kind, skill
+            FROM profile_skills
+            WHERE profile_id IN ({placeholders})
+            ORDER BY id ASC
+            """,
+            chunk,
+        ).fetchall()
+        for sr in skill_rows:
+            by_profile[sr["profile_id"]][sr["kind"]].append(sr["skill"])
 
     hydrated = []
     for r in profile_rows:
@@ -329,7 +358,17 @@ def list_profiles(query: str = "", mode: str = "all") -> List[Dict[str, Any]]:
 
         matched = False
         for term in terms:
-            is_email_match = term in email_norm or ("@" in contact_norm and term in contact_norm)
+            if "@" in term:
+                contact_tokens = (
+                    contact_norm.replace("|", " ").replace(",", " ").replace(";", " ").split()
+                )
+                is_email_match = (
+                    email_norm == term
+                    or email_norm.startswith(term)
+                    or any(t == term or t.startswith(term) for t in contact_tokens if "@" in t)
+                )
+            else:
+                is_email_match = term in email_norm or term in contact_norm
             if mode == "can_help":
                 if any(term in s for s in can_norms) or ("@" in term and is_email_match):
                     matched = True
