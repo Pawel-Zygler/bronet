@@ -58,7 +58,7 @@ export function HomeView({
     <section id="view-home" className="view view-animate" aria-labelledby="home-heading">
       <div className="hero">
         <h1 className="hero-title" id="home-heading">
-          Jeden chłop pomaga drugiemu.
+          Jeden chłop pomaga drugiemu
         </h1>
         <p className="hero-subtitle">
           Zapisz w profilu co <strong>umiesz</strong> i czego <strong>potrzebujesz</strong>. Wyszukaj

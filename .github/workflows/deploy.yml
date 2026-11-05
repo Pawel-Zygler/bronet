@@ -56,3 +56,4 @@ jobs:
         run: railway up --project b632c5a1-7c32-4a11-938b-9c178d971565 --environment d722d5f8-6334-4e02-add4-451db186e8ff --service 6de612f9-9bab-463a-ac20-f128194ebeaa --ci -m "GitHub Actions deploy (commit ${{ github.sha }})"
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
