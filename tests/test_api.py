@@ -47,10 +47,23 @@ class BronetBackendTest(unittest.TestCase):
         self.assertTrue(any(p["name"] == "Tomek" for p in can_sdlc))
 
     def test_crud_and_matching(self) -> None:
+        # Password is required on profile creation
+        with self.assertRaises(ProfileAuthError):
+            create_profile(
+                {
+                    "name": "Paweł",
+                    "email": "pawel@test.pl",
+                    "can_help": ["finanse, sdlc", "python"],
+                    "need_help": ["qa", "związki"],
+                }
+            )
+
+        # Create profile with a simple password (zero complexity restrictions, e.g. "12")
         created = create_profile(
             {
                 "name": "Paweł",
                 "email": "pawel@test.pl",
+                "password": "12",
                 "can_help": ["finanse, sdlc", "python"],
                 "need_help": ["qa", "związki"],
                 "contact": "pawel@test.pl",
@@ -58,7 +71,7 @@ class BronetBackendTest(unittest.TestCase):
             }
         )
         self.assertEqual(created["name"], "Paweł")
-        self.assertFalse(created["has_password"])
+        self.assertTrue(created["has_password"])
         self.assertEqual(created["can_help"], ["finanse", "sdlc", "python"])
         self.assertEqual(created["need_help"], ["qa", "związki"])
 
@@ -70,22 +83,6 @@ class BronetBackendTest(unittest.TestCase):
         self.assertIsNotNone(matches)
         mutual_names = [m["profile"]["name"] for m in matches["mutual"]]
         self.assertIn("Marek", mutual_names)
-
-        # Add a simple password with zero complexity rules ("12") to an unprotected profile
-        updated = update_profile(
-            created["id"],
-            {
-                "name": "Paweł Z.",
-                "email": "pawel@test.pl",
-                "password": "12",
-                "can_help": ["architektura"],
-                "need_help": ["figma"],
-                "contact": "nowy@test.pl",
-                "bio": "Zaktualizowano",
-            },
-        )
-        self.assertEqual(updated["name"], "Paweł Z.")
-        self.assertTrue(updated["has_password"])
 
         # Login without password or wrong password must fail
         with self.assertRaises(ProfileAuthError):
@@ -110,8 +107,11 @@ class BronetBackendTest(unittest.TestCase):
                 "new_password": "kawa",
                 "can_help": ["architektura"],
                 "need_help": ["figma"],
+                "contact": "nowy@test.pl",
+                "bio": "Zaktualizowano",
             },
         )
+        self.assertEqual(changed_pw["name"], "Paweł Z.")
         self.assertTrue(changed_pw["has_password"])
         self.assertEqual(authenticate_profile_by_email("pawel@test.pl", "kawa")["id"], created["id"])
 

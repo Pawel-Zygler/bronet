@@ -109,6 +109,7 @@ SEED_PROFILES = [
     {
         "name": "Marek",
         "email": "marek@bronet.pl",
+        "password": "bronet",
         "can_help": ["qa", "it", "związki", "relacje męsko-damskie"],
         "need_help": ["finanse", "sdlc", "realizacja pomysłów"],
         "contact": "marek@bronet.pl",
@@ -117,6 +118,7 @@ SEED_PROFILES = [
     {
         "name": "Kasia",
         "email": "kasia@bronet.pl",
+        "password": "bronet",
         "can_help": ["finanse", "budżet osobisty", "excel", "realizacja pomysłów"],
         "need_help": ["it", "strona www", "angielski"],
         "contact": "kasia@bronet.pl",
@@ -125,6 +127,7 @@ SEED_PROFILES = [
     {
         "name": "Tomek",
         "email": "tomek@bronet.pl",
+        "password": "bronet",
         "can_help": ["sdlc", "zarządzanie projektami", "it", "architektura systemów"],
         "need_help": ["qa", "relacje męsko-damskie", "trening siłowy"],
         "contact": "tomek@bronet.pl",
@@ -133,6 +136,7 @@ SEED_PROFILES = [
     {
         "name": "Ania",
         "email": "ania@bronet.pl",
+        "password": "bronet",
         "can_help": ["ux/ui", "figma", "angielski", "komunikacja"],
         "need_help": ["finanse", "podatki b2b", "realizacja pomysłów"],
         "contact": "ania@bronet.pl",
@@ -141,6 +145,7 @@ SEED_PROFILES = [
     {
         "name": "Piotr",
         "email": "piotr@bronet.pl",
+        "password": "bronet",
         "can_help": ["podatki b2b", "umowy", "trening siłowy", "bieganie"],
         "need_help": ["ux/ui", "it", "qa"],
         "contact": "piotr@bronet.pl",
@@ -355,12 +360,14 @@ def get_profile(profile_id: int) -> Optional[Dict[str, Any]]:
 
 def authenticate_profile_by_email(email: str, password: str = "") -> Optional[Dict[str, Any]]:
     """
-    Load a profile by email, verifying password if the profile has one set.
-    Raises ProfileAuthError if the profile is password-protected and password doesn't match.
+    Load a profile by email, requiring a password.
+    If a legacy profile has no password hash yet, sets the provided password on login.
     """
     cleaned = normalize_email(email)
     if not cleaned:
         return None
+    if not password:
+        raise ProfileAuthError("Podaj hasło.")
     with get_connection() as conn:
         row = conn.execute(
             "SELECT * FROM profiles WHERE email = ? ORDER BY updated_at DESC, id DESC LIMIT 1",
@@ -369,10 +376,16 @@ def authenticate_profile_by_email(email: str, password: str = "") -> Optional[Di
         if not row:
             return None
         stored_hash = row["password_hash"] or ""
-        if stored_hash and not verify_password(password, stored_hash):
-            if not password:
-                raise ProfileAuthError("Ten profil jest chroniony hasłem — wpisz hasło i kliknij Wczytaj.")
-            raise ProfileAuthError("Nieprawidłowe hasło dla tego profilu.")
+        if stored_hash:
+            if not verify_password(password, stored_hash):
+                raise ProfileAuthError("Nieprawidłowe hasło dla tego profilu.")
+        else:
+            upgraded_hash = hash_password(password)
+            conn.execute(
+                "UPDATE profiles SET password_hash = ?, updated_at = ? WHERE id = ?",
+                (upgraded_hash, _now_iso(), row["id"]),
+            )
+            row = conn.execute("SELECT * FROM profiles WHERE id = ?", (row["id"],)).fetchone()
         return _hydrate_profiles(conn, [row])[0]
 
 
@@ -392,6 +405,9 @@ def create_profile(data: Dict[str, Any]) -> Dict[str, Any]:
             updated = update_profile(existing_row["id"], data)
             if updated:
                 return updated
+    raw_password = str(data.get("password") or "")
+    if not raw_password:
+        raise ProfileAuthError("Hasło jest wymagane.")
     with get_connection() as conn:
         profile_id = _insert_profile_in_tx(conn, data)
         row = conn.execute("SELECT * FROM profiles WHERE id = ?", (profile_id,)).fetchone()
@@ -414,13 +430,14 @@ def update_profile(profile_id: int, data: Dict[str, Any]) -> Optional[Dict[str, 
         if existing_hash:
             if not verify_password(provided_password, existing_hash):
                 if not provided_password:
-                    raise ProfileAuthError("Ten profil ma ustawione hasło — podaj hasło, aby zapisać zmiany.")
+                    raise ProfileAuthError("Podaj hasło profilu, aby zapisać zmiany.")
                 raise ProfileAuthError("Nieprawidłowe hasło — nie można zapisać zmian.")
             effective_hash = hash_password(new_password) if new_password else existing_hash
         else:
-            # Profile had no password yet — allow setting one via either `password` or `new_password`
             chosen_pw = new_password or provided_password
-            effective_hash = hash_password(chosen_pw) if chosen_pw else ""
+            if not chosen_pw:
+                raise ProfileAuthError("Hasło jest wymagane — ustaw hasło, aby zapisać profil.")
+            effective_hash = hash_password(chosen_pw)
 
         now = _now_iso()
         name = str(data.get("name") or "").strip()

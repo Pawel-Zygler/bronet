@@ -205,6 +205,11 @@ export function ProfileEditorView({
       emailRefToFocus.current?.focus();
       return;
     }
+    if (!password) {
+      reportStatus("Podaj hasło.", true, null, "password");
+      pwRefToFocus.current?.focus();
+      return;
+    }
     setIsLoggingIn(true);
     try {
       const found = await apiSend("/api/profiles/login", "POST", {
@@ -291,8 +296,15 @@ export function ProfileEditorView({
       return;
     }
 
-    if (editingId && hasPassword && !password) {
-      reportStatus("Podaj hasło profilu w zakładce Dane logowania.", true, null, "password");
+    if (!password) {
+      reportStatus(
+        editingId && hasPassword
+          ? "Podaj hasło profilu w zakładce Dane logowania."
+          : "Ustaw hasło w zakładce Dane logowania.",
+        true,
+        null,
+        "password"
+      );
       focusTabField("auth", passwordInputRef);
       return;
     }
@@ -330,13 +342,7 @@ export function ProfileEditorView({
 
       await onProfileSaved(saved);
 
-      reportStatus(
-        saved.has_password
-          ? `Zapisano profil „${saved.name}” (chroniony hasłem) ✓`
-          : `Zapisano profil „${saved.name}” ✓`,
-        false,
-        "Zapisano ✓"
-      );
+      reportStatus(`Zapisano profil „${saved.name}” ✓`, false, "Zapisano ✓");
     } catch (err) {
       const msg = err.message || "Nie udało się zapisać profilu.";
       const lower = msg.toLowerCase();
@@ -395,7 +401,7 @@ export function ProfileEditorView({
                   id="login-email"
                   name="email"
                   inputMode="email"
-                  enterKeyHint="go"
+                  enterKeyHint={password ? "go" : "next"}
                   autoComplete="username email"
                   required
                   aria-invalid={invalidField === "email" ? "true" : undefined}
@@ -408,13 +414,19 @@ export function ProfileEditorView({
                     setEmail(e.target.value);
                     if (invalidField === "email") setInvalidField("");
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && email.trim().includes("@") && !password) {
+                      e.preventDefault();
+                      loginPasswordRef.current?.focus();
+                    }
+                  }}
                 />
               </div>
             </div>
 
             <div className="sheet-line sheet-line-wrap">
               <label htmlFor="login-password" className="sheet-label">
-                Hasło <span className="label-sub">(jeśli ustawione):</span>
+                Hasło:
               </label>
               <div className="inline-entry-group">
                 <input
@@ -424,6 +436,7 @@ export function ProfileEditorView({
                   name="password"
                   enterKeyHint="go"
                   autoComplete="current-password"
+                  required
                   aria-invalid={invalidField === "password" ? "true" : undefined}
                   aria-describedby={feedback.message ? "login-feedback" : undefined}
                   className="inline-input"
@@ -779,17 +792,11 @@ export function ProfileEditorView({
 
               <div className="sheet-line sheet-line-wrap">
                 <label htmlFor="field-password" className="sheet-label">
-                  {!isLoggedIn ? (
-                    <>
-                      Hasło <span className="label-sub">(opcjonalnie):</span>
-                    </>
-                  ) : hasPassword ? (
-                    "Hasło profilu:"
-                  ) : (
-                    <>
-                      Dodaj hasło <span className="label-sub">(opcjonalnie):</span>
-                    </>
-                  )}
+                  {!isLoggedIn
+                    ? "Hasło:"
+                    : hasPassword
+                    ? "Hasło profilu:"
+                    : "Ustaw hasło:"}
                 </label>
                 <div className="inline-entry-group">
                   <input
@@ -799,15 +806,16 @@ export function ProfileEditorView({
                     name="password"
                     enterKeyHint="done"
                     autoComplete={isLoggedIn && hasPassword ? "current-password" : "new-password"}
+                    required
                     aria-invalid={invalidField === "password" ? "true" : undefined}
                     aria-describedby={feedback.message ? "editor-feedback" : undefined}
                     className="inline-input"
                     placeholder={
                       !isLoggedIn
-                        ? "dowolne hasło bez specjalnych wymagań"
+                        ? "ustaw hasło do profilu"
                         : hasPassword
                         ? "podaj hasło profilu, aby zapisać zmiany"
-                        : "wpisz dowolne hasło, aby zabezpieczyć profil"
+                        : "ustaw wymagane hasło do profilu"
                     }
                     maxLength={200}
                     value={password}
