@@ -221,12 +221,12 @@ export function ProfileEditorView({
     const cleanEmail = email.trim().toLowerCase();
     reportStatus("", false);
     if (!cleanEmail || !cleanEmail.includes("@")) {
-      reportStatus("Wpisz poprawny adres e-mail.", true, null, "email");
+      reportStatus("Wpisz poprawny adres e-mail.", true, "Podaj e-mail", "email");
       emailRefToFocus.current?.focus();
       return;
     }
     if (!password) {
-      reportStatus("Podaj hasło.", true, null, "password");
+      reportStatus("Podaj hasło.", true, "Podaj hasło", "password");
       pwRefToFocus.current?.focus();
       return;
     }
@@ -377,7 +377,7 @@ export function ProfileEditorView({
 
     const cleanName = name.trim();
     if (!cleanName) {
-      reportStatus("Podaj imię.", true, null, "name");
+      reportStatus("Podaj imię.", true, "Podaj imię", "name");
       focusTabField("skills", nameInputRef);
       return;
     }
@@ -386,7 +386,7 @@ export function ProfileEditorView({
       reportStatus(
         "Platforma Bronet jest wyłącznie dla facetów (men only). Dozwolone są tylko męskie profile.",
         true,
-        "Tylko profile męskie",
+        "Men only",
         "name"
       );
       focusTabField("skills", nameInputRef);
@@ -395,7 +395,7 @@ export function ProfileEditorView({
 
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes("@")) {
-      reportStatus("Podaj adres e-mail w zakładce Dane logowania.", true, null, "email");
+      reportStatus("Podaj adres e-mail w zakładce Dane logowania.", true, "Podaj e-mail", "email");
       focusTabField("auth", emailInputRef);
       return;
     }
@@ -406,7 +406,7 @@ export function ProfileEditorView({
           ? "Podaj hasło profilu w zakładce Dane logowania."
           : "Ustaw hasło w zakładce Dane logowania.",
         true,
-        null,
+        "Podaj hasło",
         "password"
       );
       focusTabField("auth", passwordInputRef);

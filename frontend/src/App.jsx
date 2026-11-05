@@ -113,7 +113,8 @@ export function App() {
       setMobileHintError(false);
       return;
     }
-    setMobileHint(mobileShort || (isError ? message : "Zapisano ✓"));
+    const fallbackShort = isError ? (message.length > 16 ? "Sprawdź błędy" : message) : "Zapisano ✓";
+    setMobileHint(mobileShort || fallbackShort);
     setMobileHintError(Boolean(isError));
     if (!isError) {
       mobileHintTimerRef.current = setTimeout(() => {
@@ -175,11 +176,11 @@ export function App() {
     const reqId = ++activeReqIdRef.current;
 
     const controller = new AbortController();
-    setIsSearching(true);
     setSearchError("");
 
     const delay = isImmediate || !trimmed ? 0 : 100;
     const timer = setTimeout(() => {
+      setIsSearching(true);
       const url = trimmed
         ? `/api/profiles?q=${encodeURIComponent(trimmed)}&mode=${encodeURIComponent(searchMode)}`
         : `/api/profiles?mode=${encodeURIComponent(searchMode)}`;
@@ -196,13 +197,17 @@ export function App() {
             }
             return next;
           });
-          setIsSearching(false);
         })
         .catch((err) => {
           if (reqId !== activeReqIdRef.current) return;
-          if (err.name === "AbortError") return;
-          setSearchError(err.message || "Błąd wyszukiwania");
-          setIsSearching(false);
+          if (err.name !== "AbortError") {
+            setSearchError(err.message || "Błąd wyszukiwania");
+          }
+        })
+        .finally(() => {
+          if (reqId === activeReqIdRef.current) {
+            setIsSearching(false);
+          }
         });
     }, delay);
 

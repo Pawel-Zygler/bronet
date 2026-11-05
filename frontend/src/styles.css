@@ -29,6 +29,8 @@
 html {
   -webkit-text-size-adjust: 100%;
   background: var(--bg);
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 body {
@@ -38,6 +40,8 @@ body {
   color: var(--text);
   font-family: var(--font-sans);
   font-size: 16px;
+  overflow-x: hidden;
+  max-width: 100vw;
   line-height: 1.65;
   -webkit-font-smoothing: antialiased;
   padding-bottom: 48px;
@@ -1443,16 +1447,26 @@ button:focus-visible {
   .topbar-inner {
     padding: 8px 12px;
     min-height: 48px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .brand {
+    font-size: 1.05rem;
+    flex-shrink: 0;
   }
 
   .topbar-right {
     gap: 8px;
     margin-left: auto;
+    flex-shrink: 0;
+    min-width: 0;
   }
 
   .compact-toggle-btn {
-    padding: 4px 8px;
+    padding: 4px 10px;
     font-size: 0.78rem;
+    flex-shrink: 0;
   }
 
   .desktop-nav {
@@ -1475,34 +1489,50 @@ button:focus-visible {
     align-items: center;
     gap: 8px;
     margin-left: auto;
+    flex-shrink: 0;
+    min-width: 0;
   }
 
   .mobile-top-save-btn {
     padding: 6px 14px;
-    font-size: 0.88rem;
+    font-size: 0.85rem;
     border-radius: var(--radius-pill);
+    flex-shrink: 0;
+    white-space: nowrap;
   }
 
   .mobile-save-hint {
-    font-size: 0.78rem;
+    font-size: 0.74rem;
     color: var(--match-text);
-    max-width: 170px;
+    max-width: 110px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex-shrink: 1;
   }
 
   .mobile-save-hint.is-error {
     color: #b42318;
   }
 
+  @media (max-width: 400px) {
+    .mobile-save-hint {
+      display: none;
+    }
+  }
+
   .container {
-    padding: 24px 18px 40px;
+    padding: 20px 14px 40px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
   }
 
   .hero-title,
   .page-title {
-    font-size: 1.65rem;
+    font-size: 1.5rem;
+    word-break: break-word;
   }
 
   .profile-card {
@@ -1512,6 +1542,8 @@ button:focus-visible {
   .pagination-bar {
     padding: 10px 12px;
     gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
   }
 
   .pagination-btn {
@@ -1529,23 +1561,41 @@ button:focus-visible {
   }
 
   .profile-tabs {
-    gap: 14px;
+    gap: 12px;
     margin-bottom: 20px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .profile-tab {
-    font-size: 0.88rem;
+    font-size: 0.86rem;
     padding: 6px 2px 9px;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .sheet-line {
     flex-direction: column;
     align-items: stretch;
     gap: 4px;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .inline-entry-group {
-    min-width: 100%;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .inline-input {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
   }
 
   .mobile-bottom-nav {

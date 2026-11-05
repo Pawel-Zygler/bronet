@@ -134,6 +134,10 @@ export function HomeView({
                 if (e.key === "Escape" && searchQuery) {
                   e.preventDefault();
                   onSearchChange("", searchMode);
+                } else if (e.key === "Enter") {
+                  if (onSearchSubmit) {
+                    onSearchSubmit();
+                  }
                 }
               }}
             />

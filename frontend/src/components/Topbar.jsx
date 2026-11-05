@@ -31,33 +31,35 @@ export function Topbar({
           </a>
 
           <div className="topbar-right">
-            <button
-              type="button"
-              id="compact-view-toggle"
-              className={`compact-toggle-btn ${isCompactView ? "is-active" : ""}`}
-              onClick={onToggleCompactView}
-              aria-pressed={isCompactView}
-              title={isCompactView ? "Wyłącz widok kompaktowy" : "Włącz widok kompaktowy (15 profili na ekran)"}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
+            {!isEditorView && (
+              <button
+                type="button"
+                id="compact-view-toggle"
+                className={`compact-toggle-btn ${isCompactView ? "is-active" : ""}`}
+                onClick={onToggleCompactView}
+                aria-pressed={isCompactView}
+                title={isCompactView ? "Wyłącz widok kompaktowy" : "Włącz widok kompaktowy (15 profili na ekran)"}
               >
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="18" x2="21" y2="18" />
-              </svg>
-              <span className="compact-btn-text">
-                {isCompactView ? "Kompakt (wł.)" : "Kompakt"}
-              </span>
-            </button>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
+                </svg>
+                <span className="compact-btn-text">
+                  {isCompactView ? "Kompakt (wł.)" : "Kompakt"}
+                </span>
+              </button>
+            )}
 
             <nav className="desktop-nav" aria-label="Główna nawigacja">
               <a

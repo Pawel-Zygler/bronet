@@ -5,6 +5,8 @@ import os
 import re
 import secrets
 import sqlite3
+import threading
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -172,10 +174,22 @@ def clean_skills(raw_skills: List[str]) -> List[str]:
 def get_connection() -> sqlite3.Connection:
     db_path = get_db_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(db_path))
+    conn = sqlite3.connect(str(db_path), timeout=30.0)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode = WAL;")
+    conn.execute("PRAGMA synchronous = NORMAL;")
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
+
+
+@contextmanager
+def get_db():
+    conn = get_connection()
+    try:
+        yield conn
+        conn.commit()
+    finally:
+        conn.close()
 
 
 SEED_PROFILES = [
@@ -228,7 +242,7 @@ SEED_PROFILES = [
 
 
 def init_db(seed: bool = True) -> None:
-    with get_connection() as conn:
+    with get_db() as conn:
         conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS profiles (
@@ -306,6 +320,7 @@ def init_db(seed: bool = True) -> None:
                                     existing_emails.add(em)
                     except Exception as err:
                         print(f"Warning: Failed to load seed_profiles.json: {err}")
+        invalidate_profiles_cache()
 
 
 def _now_iso() -> str:
@@ -418,13 +433,31 @@ def _hydrate_profiles(conn: sqlite3.Connection, profile_rows: List[sqlite3.Row])
     return hydrated
 
 
+_CACHE_LOCK = threading.RLock()
+_PROFILES_CACHE: Optional[List[Dict[str, Any]]] = None
+
+
+def invalidate_profiles_cache() -> None:
+    global _PROFILES_CACHE
+    with _CACHE_LOCK:
+        _PROFILES_CACHE = None
+
+
+def _get_cached_profiles() -> List[Dict[str, Any]]:
+    global _PROFILES_CACHE
+    with _CACHE_LOCK:
+        if _PROFILES_CACHE is None:
+            with get_db() as conn:
+                all_rows = conn.execute(
+                    "SELECT * FROM profiles ORDER BY updated_at DESC, id DESC"
+                ).fetchall()
+                _PROFILES_CACHE = _hydrate_profiles(conn, all_rows)
+        return _PROFILES_CACHE
+
+
 def list_profiles(query: str = "", mode: str = "all") -> List[Dict[str, Any]]:
     q_norm = normalize_text(query)
-    with get_connection() as conn:
-        all_rows = conn.execute(
-            "SELECT * FROM profiles ORDER BY updated_at DESC, id DESC"
-        ).fetchall()
-        profiles = _hydrate_profiles(conn, all_rows)
+    profiles = _get_cached_profiles()
 
     if not q_norm:
         return profiles
@@ -480,7 +513,7 @@ def list_profiles(query: str = "", mode: str = "all") -> List[Dict[str, Any]]:
 
 
 def get_profile(profile_id: int) -> Optional[Dict[str, Any]]:
-    with get_connection() as conn:
+    with get_db() as conn:
         row = conn.execute("SELECT * FROM profiles WHERE id = ?", (profile_id,)).fetchone()
         if not row:
             return None
@@ -497,7 +530,7 @@ def authenticate_profile_by_email(email: str, password: str = "") -> Optional[Di
         return None
     if not password:
         raise ProfileAuthError("Podaj hasło.")
-    with get_connection() as conn:
+    with get_db() as conn:
         row = conn.execute(
             "SELECT * FROM profiles WHERE email = ? ORDER BY updated_at DESC, id DESC LIMIT 1",
             (cleaned,),
@@ -527,7 +560,7 @@ def create_profile(data: Dict[str, Any]) -> Dict[str, Any]:
     email = normalize_email(data.get("email"))
     validate_men_only(name, email)
     if email:
-        with get_connection() as conn:
+        with get_db() as conn:
             existing_row = conn.execute(
                 "SELECT id FROM profiles WHERE email = ? ORDER BY updated_at DESC, id DESC LIMIT 1",
                 (email,),
@@ -539,14 +572,16 @@ def create_profile(data: Dict[str, Any]) -> Dict[str, Any]:
     raw_password = str(data.get("password") or "")
     if not raw_password:
         raise ProfileAuthError("Hasło jest wymagane.")
-    with get_connection() as conn:
+    with get_db() as conn:
         profile_id = _insert_profile_in_tx(conn, data)
         row = conn.execute("SELECT * FROM profiles WHERE id = ?", (profile_id,)).fetchone()
-        return _hydrate_profiles(conn, [row])[0]
+        hydrated = _hydrate_profiles(conn, [row])[0]
+    invalidate_profiles_cache()
+    return hydrated
 
 
 def update_profile(profile_id: int, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    with get_connection() as conn:
+    with get_db() as conn:
         existing = conn.execute(
             "SELECT id, password_hash FROM profiles WHERE id = ?",
             (profile_id,),
@@ -602,11 +637,13 @@ def update_profile(profile_id: int, data: Dict[str, Any]) -> Optional[Dict[str, 
             clean_skills(data.get("need_help", [])),
         )
         row = conn.execute("SELECT * FROM profiles WHERE id = ?", (profile_id,)).fetchone()
-        return _hydrate_profiles(conn, [row])[0]
+        hydrated = _hydrate_profiles(conn, [row])[0]
+    invalidate_profiles_cache()
+    return hydrated
 
 
 def delete_profile(profile_id: int, password: str = "") -> bool:
-    with get_connection() as conn:
+    with get_db() as conn:
         existing = conn.execute(
             "SELECT id, password_hash FROM profiles WHERE id = ?",
             (profile_id,),
@@ -619,11 +656,14 @@ def delete_profile(profile_id: int, password: str = "") -> bool:
         if stored_hash and not verify_password(password, stored_hash):
             raise ProfileAuthError("Nieprawidłowe hasło — nie można usunąć profilu.")
         cur = conn.execute("DELETE FROM profiles WHERE id = ?", (profile_id,))
-        return cur.rowcount > 0
+        success = cur.rowcount > 0
+    if success:
+        invalidate_profiles_cache()
+    return success
 
 
 def get_skills_catalog() -> Dict[str, Any]:
-    with get_connection() as conn:
+    with get_db() as conn:
         can_rows = conn.execute(
             """
             SELECT MIN(skill) AS label, skill_normalized, COUNT(*) AS cnt

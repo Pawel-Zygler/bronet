@@ -13,21 +13,36 @@ export function MatchingView({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [demoProfileId, setDemoProfileId] = useState(null);
+  const [internalProfiles, setInternalProfiles] = useState(profiles || []);
+
+  const allProfiles = internalProfiles.length > 0 ? internalProfiles : profiles || [];
+
+  useEffect(() => {
+    if (profiles && profiles.length > 0) {
+      setInternalProfiles(profiles);
+    } else {
+      apiGet("/api/profiles")
+        .then((list) => {
+          if (Array.isArray(list)) setInternalProfiles(list);
+        })
+        .catch(() => {});
+    }
+  }, [profiles]);
 
   const effectiveProfileId = myProfile ? myProfile.id : demoProfileId;
 
   // Auto-select a demo profile if visitor is not logged in and demo profile not picked yet
   useEffect(() => {
-    if (!myProfile && !demoProfileId && profiles && profiles.length > 0) {
+    if (!myProfile && !demoProfileId && allProfiles && allProfiles.length > 0) {
       // Find a profile with both can_help and need_help
-      const candidate = profiles.find(
+      const candidate = allProfiles.find(
         (p) => p.can_help && p.can_help.length > 0 && p.need_help && p.need_help.length > 0
       );
       if (candidate) {
         setDemoProfileId(candidate.id);
       }
     }
-  }, [myProfile, demoProfileId, profiles]);
+  }, [myProfile, demoProfileId, allProfiles]);
 
   useEffect(() => {
     if (!effectiveProfileId) {
@@ -104,25 +119,24 @@ export function MatchingView({
             </div>
           </div>
 
-          {profiles && profiles.length > 0 && (
-            <div className="matching-demo-selector">
-              <label htmlFor="demo-profile-select" className="matching-demo-label">
-                Albo sprawdź dopasowania dla wybranego chłopa z bazy:
-              </label>
-              <select
-                id="demo-profile-select"
-                className="matching-select"
-                value={demoProfileId || ""}
-                onChange={(e) => setDemoProfileId(Number(e.target.value) || null)}
-              >
-                {profiles.slice(0, 40).map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.can_help?.slice(0, 2).join(", ") || "brak"})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div className="matching-demo-selector">
+            <label htmlFor="demo-profile-select" className="matching-demo-label">
+              Albo sprawdź dopasowania dla wybranego chłopa z bazy:
+            </label>
+            <select
+              id="demo-profile-select"
+              className="matching-select"
+              value={demoProfileId || ""}
+              onChange={(e) => setDemoProfileId(Number(e.target.value) || null)}
+            >
+              {allProfiles.length === 0 && <option value="">Ładowanie profili...</option>}
+              {allProfiles.slice(0, 40).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.can_help?.slice(0, 2).join(", ") || "brak"})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       )}
 
@@ -418,3 +432,4 @@ export function MatchingView({
     </section>
   );
 }
+

@@ -55,6 +55,7 @@ test.describe("Landing & Search", () => {
     { tag: ["@smoke", "@regression"] },
     async ({ page }) => {
       await page.goto("/");
+      await expect(page.locator(".profile-card").first()).toBeVisible();
 
       const compactBtn = page.locator("#compact-view-toggle");
       await expect(compactBtn).toBeVisible();
@@ -89,6 +90,7 @@ test.describe("Landing & Search", () => {
 
       // Wyszukanie 'kasia'
       await searchInput.fill("kasia");
+      await searchInput.press("Enter");
       await expect(page.locator(".empty-state")).toContainText(
         "Brak profili pasujących do wyszukiwania „kasia”"
       );
@@ -96,6 +98,7 @@ test.describe("Landing & Search", () => {
 
       // Wyszukanie 'basia'
       await searchInput.fill("basia");
+      await searchInput.press("Enter");
       await expect(page.locator(".empty-state")).toContainText(
         "Brak profili pasujących do wyszukiwania „basia”"
       );
@@ -154,6 +157,7 @@ test.describe("Landing & Search", () => {
 
       // 1. Wyszukiwanie frazy w widoku standardowym
       await searchInput.fill("hydraulik");
+      await searchInput.press("Enter");
       await expect(page.locator(".active-filter-hint")).toContainText("hydraulik");
       await expect(page.locator(".profile-card").first()).toBeVisible();
       await expect(page.locator(".search-clear")).toBeVisible();
@@ -251,6 +255,43 @@ test.describe("Landing & Search", () => {
       // Przełączenie z powrotem na standardowy
       await compactBtn.click();
       await expect(compactBtn).toHaveAttribute("aria-pressed", "false");
+    }
+  );
+
+  test(
+    "weryfikuje responsywność na ekranie mobilnym (brak poziomego scrolla, brak compact toggle w profilu, widoczny przycisk zapisu)",
+    { tag: ["@smoke", "@regression"] },
+    async ({ page }) => {
+      // Ustawienie wąskiego viewportu mobilnego (np. 360x780 typowy Android / Pixel)
+      await page.setViewportSize({ width: 360, height: 780 });
+
+      // 1. Sprawdzenie strony głównej
+      await page.goto("/");
+      let hasHorizontalScroll = await page.evaluate(
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+      );
+      expect(hasHorizontalScroll).toBeFalsy();
+
+      // 2. Sprawdzenie zakładki Profil / Załóż profil
+      await page.goto("/profil");
+      await page.locator("#login-email").fill("test.nowy@bronet.test");
+      await page.locator("#login-password").fill("haslo123");
+      await page.locator("#login-password").press("Enter");
+
+      await expect(page.locator("#editor-heading")).toHaveText("Załóż profil");
+
+      // Przycisk kompaktowy nie powinien się wyświetlać w widoku edytora profilu
+      await expect(page.locator("#compact-view-toggle")).toHaveCount(0);
+
+      // Przycisk 'Zapisz' w nagłówku mobilnym jest w pełni widoczny i nie jest ucięty
+      const mobileSaveBtn = page.locator(".mobile-top-save-btn");
+      await expect(mobileSaveBtn).toBeVisible();
+
+      // Brak poziomego paska przewijania (brak rozjeżdżania się)
+      hasHorizontalScroll = await page.evaluate(
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+      );
+      expect(hasHorizontalScroll).toBeFalsy();
     }
   );
 });

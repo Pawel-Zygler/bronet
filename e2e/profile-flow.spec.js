@@ -41,7 +41,10 @@ test.describe("Profile lifecycle", () => {
 
         // 3. Wyszukanie utworzonego profilu po adresie e-mail
         await page.locator(".desktop-nav").getByRole("link", { name: "Szukaj chłopa" }).click();
-        await page.locator("#search-input").fill(testEmail);
+        const searchInput = page.locator("#search-input");
+        await expect(searchInput).toBeVisible();
+        await searchInput.fill(testEmail);
+        await searchInput.press("Enter");
         await expect(page.locator(".profile-card .card-name", { hasText: testName })).toBeVisible();
 
         // 4. Wylogowanie i ponowne zalogowanie klawiszem Enter
