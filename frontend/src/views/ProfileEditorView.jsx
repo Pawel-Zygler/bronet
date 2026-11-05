@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { apiSend } from "../api";
+import { apiGet, apiSend } from "../api";
 import { POPULAR_CITIES, findCityCoords } from "../utils/cities";
 import { isFemaleName, mergeUniqueSkills, normalizeText } from "../utils/text";
 
@@ -11,6 +11,7 @@ const EDITOR_TABS = [
   { key: "location", label: "Lokalizacja" },
   { key: "contact", label: "Kontakt" },
   { key: "bio", label: "O mnie" },
+  { key: "stats", label: "Statystyki" },
   { key: "auth", label: "Dane logowania" },
 ];
 
@@ -80,6 +81,24 @@ export function ProfileEditorView({
   const deleteTriggerRef = useRef(null);
   const deletePwInputRef = useRef(null);
   const deleteConfirmBtnRef = useRef(null);
+
+  // Chłopocoin stats
+  const [chlopocoinStats, setChlopocoinStats] = useState(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === "stats" && editingId) {
+      setLoadingStats(true);
+      apiGet(`/api/profiles/${editingId}/chlopocoin-stats`)
+        .then((data) => {
+          setChlopocoinStats(data);
+          setLoadingStats(false);
+        })
+        .catch(() => {
+          setLoadingStats(false);
+        });
+    }
+  }, [activeTab, editingId]);
 
   const reportStatus = (message, isError = false, mobileShort = null, badField = "") => {
     setInvalidField(isError ? badField : "");
@@ -1005,7 +1024,96 @@ export function ProfileEditorView({
               </div>
             </div>
 
-            {/* Zakładka 4: Dane logowania */}
+            {/* Zakładka 5: Statystyki i Chłopocoin (Ekonomia Blockchain) */}
+            <div
+              id="editor-panel-stats"
+              role="tabpanel"
+              aria-labelledby="editor-tab-stats"
+              className="profile-tab-panel"
+              hidden={activeTab !== "stats"}
+            >
+              <div className="stats-hero-card" id="stats-hero-coin-card">
+                <div className="stats-hero-icon" aria-hidden="true">🪙</div>
+                <div className="stats-hero-info">
+                  <div className="stats-hero-label">Twoje saldo w sieci Chłopchain:</div>
+                  <div className="stats-hero-balance">
+                    <span id="stats-coin-balance" className="coin-balance-big">
+                      {chlopocoinStats?.balance ?? (myProfile?.chlopocoin_balance || 0)}
+                    </span>
+                    <span className="coin-currency">Chłopocoinów (CC)</span>
+                  </div>
+                  <p className="stats-hero-sub">
+                    Ekonomia Blockchain Bronet (Proof of Chłop Help). Autentyczny konsensus 2/2 — każdy coin powstaje z realnej, obustronnie potwierdzonej pomocy między chłopami.
+                  </p>
+                </div>
+              </div>
+
+              <div className="stats-metrics-grid">
+                <div className="stat-metric-card">
+                  <div className="metric-val" id="stats-metric-balance">
+                    🪙 {chlopocoinStats?.balance ?? (myProfile?.chlopocoin_balance || 0)} CC
+                  </div>
+                  <div className="metric-desc">Saldo Chłopocoinów</div>
+                </div>
+
+                <div className="stat-metric-card">
+                  <div className="metric-val" id="stats-metric-completed">
+                    🤝 {chlopocoinStats?.completed_helps ?? 0}
+                  </div>
+                  <div className="metric-desc">Zatwierdzone wymiany (2/2)</div>
+                </div>
+
+                <div className="stat-metric-card">
+                  <div className="metric-val" id="stats-metric-pending">
+                    ⏳ {chlopocoinStats?.waiting_for_them_count ?? 0}
+                  </div>
+                  <div className="metric-desc">Czeka na potwierdzenie</div>
+                </div>
+              </div>
+
+              <div className="stats-blockchain-ledger" id="stats-blocks-ledger">
+                <h4 className="ledger-title">⛓️ Księga Rozproszona Chłopchain (Wykopane bloki)</h4>
+                {loadingStats ? (
+                  <p className="label-sub">Synchronizacja łańcucha bloków...</p>
+                ) : chlopocoinStats?.blocks && chlopocoinStats.blocks.length > 0 ? (
+                  <div className="ledger-table-wrap">
+                    <table className="ledger-table">
+                      <thead>
+                        <tr>
+                          <th>Blok</th>
+                          <th>Partner w pomocy</th>
+                          <th>Hash bloku (SHA-256)</th>
+                          <th>Data</th>
+                          <th>Nagroda</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {chlopocoinStats.blocks.map((b) => (
+                          <tr key={b.block_index}>
+                            <td><strong>#{b.block_index}</strong></td>
+                            <td>{b.partner_name}</td>
+                            <td><code className="block-hash">{b.block_hash ? `${b.block_hash.slice(0, 16)}...` : ""}</code></td>
+                            <td>{b.created_at ? new Date(b.created_at).toLocaleDateString() : "—"}</td>
+                            <td><span className="badge badge-success">+1 🪙 CC</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="ledger-empty-box">
+                    <p className="ledger-empty-title">
+                      Brak wykopanych bloków w Twoim portfelu.
+                    </p>
+                    <p className="label-sub">
+                      Gdy zmatchujesz się z innym chłopem i po udanej pomocy <strong>obaj klikniecie coina na swoich profilach</strong>, Chłopchain zatwierdzi blok i obaj otrzymacie po 1 Chłopocoinie!
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Zakładka 6: Dane logowania */}
             <div
               id="editor-panel-auth"
               role="tabpanel"
@@ -1119,9 +1227,15 @@ export function ProfileEditorView({
             </div>
 
             <div className="form-actions">
-              <button type="submit" className="btn btn-primary" disabled={isSubmitting || isDeleting}>
-                {editingId ? "Zapisz zmiany w profilu" : "Zapisz profil"}
-              </button>
+              {activeTab !== "stats" ? (
+                <button type="submit" className="btn btn-primary" disabled={isSubmitting || isDeleting}>
+                  {editingId ? "Zapisz zmiany w profilu" : "Zapisz profil"}
+                </button>
+              ) : (
+                <span className="stats-tab-readonly-hint">
+                  🪙 Statystyki Chłopchain są aktualizowane automatycznie w czasie rzeczywistym.
+                </span>
+              )}
               <span
                 id="editor-feedback"
                 className={`save-feedback ${feedback.isError ? "is-error" : ""}`}

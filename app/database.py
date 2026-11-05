@@ -333,8 +333,38 @@ def init_db(seed: bool = True) -> None:
             conn.execute("ALTER TABLE profiles ADD COLUMN lng REAL;")
         if "share_location" not in cols:
             conn.execute("ALTER TABLE profiles ADD COLUMN share_location INTEGER NOT NULL DEFAULT 0;")
+        if "chlopocoin_balance" not in cols:
+            conn.execute("ALTER TABLE profiles ADD COLUMN chlopocoin_balance INTEGER NOT NULL DEFAULT 0;")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_share_location ON profiles(share_location);")
+
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS chlopocoin_confirmations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                from_profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                to_profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                created_at TEXT NOT NULL,
+                UNIQUE(from_profile_id, to_profile_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS chlopocoin_blocks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                block_index INTEGER NOT NULL,
+                profile_a_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                profile_b_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                block_hash TEXT NOT NULL UNIQUE,
+                prev_hash TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                UNIQUE(profile_a_id, profile_b_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_chlopocoin_conf_pair
+                ON chlopocoin_confirmations(from_profile_id, to_profile_id);
+            CREATE INDEX IF NOT EXISTS idx_chlopocoin_blocks_profiles
+                ON chlopocoin_blocks(profile_a_id, profile_b_id);
+            """
+        )
 
         # Usunięcie starych profili żeńskich, jeśli istnieją w trwałej bazie (men only)
         rows = conn.execute("SELECT id, name, email FROM profiles").fetchall()
@@ -555,6 +585,7 @@ def _hydrate_profiles(conn: sqlite3.Connection, profile_rows: List[sqlite3.Row])
                 "lat": lat,
                 "lng": lng,
                 "share_location": bool(r["share_location"]) if "share_location" in row_keys and r["share_location"] else False,
+                "chlopocoin_balance": int(r["chlopocoin_balance"]) if "chlopocoin_balance" in row_keys and r["chlopocoin_balance"] is not None else 0,
                 "created_at": r["created_at"],
                 "updated_at": r["updated_at"],
             }
@@ -900,3 +931,231 @@ def get_matches_for_profile(profile_id: int) -> Optional[Dict[str, Any]]:
         "they_help_me": they_help_me,
         "i_help_them": i_help_them,
     }
+
+
+def confirm_chlop_help(
+    from_profile_id: int, to_profile_id: int, password: Optional[str] = ""
+) -> Dict[str, Any]:
+    """
+    Zasada konsensusu 2/2 w sieci Chłopchain:
+    Obaj chłopi muszą potwierdzić pomoc na stronie profilu.
+    Gdy obaj to zrobią, zostaje wybity nowy blok w blockchainie i obaj otrzymują po 1 Chłopocoinie (CC).
+    """
+    if from_profile_id == to_profile_id:
+        raise ProfileValidationError("Nie możesz przyznać Chłopocoina samemu sobie.")
+
+    with get_db() as conn:
+        from_row = conn.execute(
+            "SELECT id, name, password_hash, chlopocoin_balance FROM profiles WHERE id = ?",
+            (from_profile_id,),
+        ).fetchone()
+        if not from_row:
+            raise ProfileAuthError("Profil potwierdzający nie istnieje.")
+
+        to_row = conn.execute(
+            "SELECT id, name, chlopocoin_balance FROM profiles WHERE id = ?",
+            (to_profile_id,),
+        ).fetchone()
+        if not to_row:
+            raise ProfileValidationError("Profil docelowy nie istnieje.")
+
+        stored_hash = from_row["password_hash"] or ""
+        if stored_hash and password:
+            if not verify_password(password, stored_hash):
+                raise ProfileAuthError("Nieprawidłowe hasło profilu.")
+
+        p1, p2 = min(from_profile_id, to_profile_id), max(from_profile_id, to_profile_id)
+        now = _now_iso()
+
+        # Sprawdź, czy blok pomocy między tą parą został już wybity
+        existing_block = conn.execute(
+            "SELECT * FROM chlopocoin_blocks WHERE profile_a_id = ? AND profile_b_id = ?",
+            (p1, p2),
+        ).fetchone()
+
+        if existing_block:
+            balance_row = conn.execute(
+                "SELECT chlopocoin_balance FROM profiles WHERE id = ?", (from_profile_id,)
+            ).fetchone()
+            return {
+                "status": "already_settled",
+                "mutual_settled": True,
+                "block_index": existing_block["block_index"],
+                "block_hash": existing_block["block_hash"],
+                "chlopocoin_balance": balance_row["chlopocoin_balance"] if balance_row else 0,
+                "message": "Pomoc została już rozliczona w sieci Chłopchain. Chłopocoin został przyznany wcześniej.",
+            }
+
+        # Zapisz potwierdzenie od chłopa A dla chłopa B
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO chlopocoin_confirmations (from_profile_id, to_profile_id, created_at)
+            VALUES (?, ?, ?)
+            """,
+            (from_profile_id, to_profile_id, now),
+        )
+
+        # Sprawdź, czy chłop B również potwierdził chłopa A
+        other_confirmed = conn.execute(
+            "SELECT id FROM chlopocoin_confirmations WHERE from_profile_id = ? AND to_profile_id = ?",
+            (to_profile_id, from_profile_id),
+        ).fetchone()
+
+        if other_confirmed:
+            # KONSENSUS 2/2 OSIĄGNIĘTY -> Mint nowego bloku w Chłopchainie!
+            last_block = conn.execute(
+                "SELECT block_index, block_hash FROM chlopocoin_blocks ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            prev_hash = last_block["block_hash"] if last_block else "0" * 64
+            block_index = (last_block["block_index"] + 1) if last_block else 1
+            payload = f"{block_index}:{prev_hash}:{p1}:{p2}:{now}:proof_of_chlop_help"
+            block_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+            conn.execute(
+                """
+                INSERT INTO chlopocoin_blocks (block_index, profile_a_id, profile_b_id, block_hash, prev_hash, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (block_index, p1, p2, block_hash, prev_hash, now),
+            )
+
+            # Dodaj po 1 Chłopocoinie dla obu profili
+            conn.execute(
+                "UPDATE profiles SET chlopocoin_balance = chlopocoin_balance + 1 WHERE id IN (?, ?)",
+                (p1, p2),
+            )
+
+            invalidate_profiles_cache()
+            balance_row = conn.execute(
+                "SELECT chlopocoin_balance FROM profiles WHERE id = ?", (from_profile_id,)
+            ).fetchone()
+            return {
+                "status": "minted",
+                "mutual_settled": True,
+                "block_index": block_index,
+                "block_hash": block_hash,
+                "chlopocoin_balance": balance_row["chlopocoin_balance"] if balance_row else 1,
+                "message": "Konsensus 2/2 osiągnięty! Blok zatwierdzony w sieci Chłopchain — obaj otrzymujecie po 1 Chłopocoinie! 🪙",
+            }
+        else:
+            balance_row = conn.execute(
+                "SELECT chlopocoin_balance FROM profiles WHERE id = ?", (from_profile_id,)
+            ).fetchone()
+            return {
+                "status": "pending",
+                "mutual_settled": False,
+                "chlopocoin_balance": balance_row["chlopocoin_balance"] if balance_row else 0,
+                "message": f"Twoje potwierdzenie zostało zapisane (1/2). Czekamy na potwierdzenie od chłopa {to_row['name']}.",
+            }
+
+
+def get_chlopocoin_status(profile_a_id: int, profile_b_id: int) -> Dict[str, Any]:
+    with get_db() as conn:
+        p1, p2 = min(profile_a_id, profile_b_id), max(profile_a_id, profile_b_id)
+        block = conn.execute(
+            "SELECT * FROM chlopocoin_blocks WHERE profile_a_id = ? AND profile_b_id = ?",
+            (p1, p2),
+        ).fetchone()
+        a_confirmed = bool(
+            conn.execute(
+                "SELECT id FROM chlopocoin_confirmations WHERE from_profile_id = ? AND to_profile_id = ?",
+                (profile_a_id, profile_b_id),
+            ).fetchone()
+        )
+        b_confirmed = bool(
+            conn.execute(
+                "SELECT id FROM chlopocoin_confirmations WHERE from_profile_id = ? AND to_profile_id = ?",
+                (profile_b_id, profile_a_id),
+            ).fetchone()
+        )
+
+        return {
+            "confirmed_by_me": a_confirmed,
+            "confirmed_by_them": b_confirmed,
+            "mutual_settled": bool(block),
+            "block_index": block["block_index"] if block else None,
+            "block_hash": block["block_hash"] if block else None,
+            "created_at": block["created_at"] if block else None,
+        }
+
+
+def get_chlopocoin_stats(profile_id: int) -> Dict[str, Any]:
+    with get_db() as conn:
+        prof = conn.execute(
+            "SELECT chlopocoin_balance, name FROM profiles WHERE id = ?", (profile_id,)
+        ).fetchone()
+        balance = prof["chlopocoin_balance"] if prof and prof["chlopocoin_balance"] else 0
+
+        blocks_rows = conn.execute(
+            """
+            SELECT b.id, b.block_index, b.block_hash, b.prev_hash, b.created_at,
+                   b.profile_a_id, b.profile_b_id,
+                   pa.name as profile_a_name, pb.name as profile_b_name
+            FROM chlopocoin_blocks b
+            JOIN profiles pa ON pa.id = b.profile_a_id
+            JOIN profiles pb ON pb.id = b.profile_b_id
+            WHERE b.profile_a_id = ? OR b.profile_b_id = ?
+            ORDER BY b.block_index DESC
+            """,
+            (profile_id, profile_id),
+        ).fetchall()
+
+        blocks = []
+        for br in blocks_rows:
+            partner_id = (
+                br["profile_b_id"] if br["profile_a_id"] == profile_id else br["profile_a_id"]
+            )
+            partner_name = (
+                br["profile_b_name"] if br["profile_a_id"] == profile_id else br["profile_a_name"]
+            )
+            blocks.append(
+                {
+                    "block_index": br["block_index"],
+                    "partner_id": partner_id,
+                    "partner_name": partner_name,
+                    "block_hash": br["block_hash"],
+                    "prev_hash": br["prev_hash"],
+                    "created_at": br["created_at"],
+                    "reward": 1,
+                }
+            )
+
+        waiting_for_them = conn.execute(
+            """
+            SELECT c.to_profile_id as partner_id, p.name as partner_name, c.created_at
+            FROM chlopocoin_confirmations c
+            JOIN profiles p ON p.id = c.to_profile_id
+            WHERE c.from_profile_id = ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM chlopocoin_confirmations c2
+                  WHERE c2.from_profile_id = c.to_profile_id AND c2.to_profile_id = c.from_profile_id
+              )
+            ORDER BY c.id DESC
+            """,
+            (profile_id,),
+        ).fetchall()
+
+        waiting_for_me = conn.execute(
+            """
+            SELECT c.from_profile_id as partner_id, p.name as partner_name, c.created_at
+            FROM chlopocoin_confirmations c
+            JOIN profiles p ON p.id = c.from_profile_id
+            WHERE c.to_profile_id = ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM chlopocoin_confirmations c2
+                  WHERE c2.from_profile_id = c.to_profile_id AND c2.to_profile_id = c.from_profile_id
+              )
+            ORDER BY c.id DESC
+            """,
+            (profile_id,),
+        ).fetchall()
+
+        return {
+            "balance": balance,
+            "completed_helps": len(blocks),
+            "waiting_for_them_count": len(waiting_for_them),
+            "waiting_for_them": [dict(r) for r in waiting_for_them],
+            "waiting_for_me_count": len(waiting_for_me),
+            "waiting_for_me": [dict(r) for r in waiting_for_me],
+            "blocks": blocks,
+        }

@@ -26,6 +26,11 @@ class DeletePayload(BaseModel):
     password: Optional[str] = Field(default="", max_length=200)
 
 
+class ConfirmHelpPayload(BaseModel):
+    other_profile_id: int
+    password: Optional[str] = Field(default="", max_length=200)
+
+
 class ProfileResponse(BaseModel):
     id: int
     name: str
@@ -39,5 +44,6 @@ class ProfileResponse(BaseModel):
     lat: Optional[float] = None
     lng: Optional[float] = None
     share_location: Optional[bool] = False
+    chlopocoin_balance: Optional[int] = 0
     created_at: str
     updated_at: str

@@ -8,8 +8,11 @@ from app.database import (
     ProfileAuthError,
     ProfileValidationError,
     authenticate_profile_by_email,
+    confirm_chlop_help,
     create_profile,
     delete_profile,
+    get_chlopocoin_stats,
+    get_chlopocoin_status,
     get_matches_for_profile,
     get_profile,
     get_skills_catalog,
@@ -17,7 +20,13 @@ from app.database import (
     list_profiles,
     update_profile,
 )
-from app.models import DeletePayload, LoginPayload, ProfilePayload, ProfileResponse
+from app.models import (
+    ConfirmHelpPayload,
+    DeletePayload,
+    LoginPayload,
+    ProfilePayload,
+    ProfileResponse,
+)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = BASE_DIR / "static"
@@ -145,6 +154,33 @@ def api_profile_matches(profile_id: int) -> dict:
 @app.get("/api/skills")
 def api_skills() -> dict:
     return get_skills_catalog()
+
+
+@app.post("/api/profiles/{profile_id}/confirm-help")
+def api_confirm_help(profile_id: int, payload: ConfirmHelpPayload) -> dict:
+    try:
+        return confirm_chlop_help(
+            from_profile_id=profile_id,
+            to_profile_id=payload.other_profile_id,
+            password=payload.password or "",
+        )
+    except ProfileValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except ProfileAuthError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+
+
+@app.get("/api/profiles/{profile_id}/chlopocoin-status")
+def api_chlopocoin_status(profile_id: int, other_id: int = Query(...)) -> dict:
+    return get_chlopocoin_status(profile_id, other_id)
+
+
+@app.get("/api/profiles/{profile_id}/chlopocoin-stats")
+def api_chlopocoin_stats(profile_id: int) -> dict:
+    prof = get_profile(profile_id)
+    if not prof:
+        raise HTTPException(status_code=404, detail="Nie znaleziono profilu.")
+    return get_chlopocoin_stats(profile_id)
 
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

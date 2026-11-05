@@ -398,9 +398,18 @@ export function App() {
           <ProfileDetailView
             profileId={route.profileId}
             cachedProfile={profilesCache[route.profileId] || null}
+            myProfile={myProfile}
+            sessionPasswords={sessionPasswords}
             onCacheProfile={handleCacheProfile}
             onBackToSearch={() => navigate("/")}
             onJumpToSkillSearch={handleJumpToSkillSearch}
+            onRefreshMyProfile={() => {
+              if (myProfile && myProfile.id) {
+                apiGet(`/api/profiles/${myProfile.id}`)
+                  .then((fresh) => setMyProfile(fresh, false))
+                  .catch(() => {});
+              }
+            }}
           />
         )}
       </main>
