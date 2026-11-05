@@ -20,6 +20,7 @@ export function ProfileEditorView({
   onSaveSessionPassword,
   onProfileSaved,
   onProfileLoggedIn,
+  onProfileDeleted,
   onLogout,
   onStatusChange,
   onSavingChange,
@@ -51,6 +52,11 @@ export function ProfileEditorView({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [forceShowDeletePw, setForceShowDeletePw] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [invalidField, setInvalidField] = useState("");
   const [feedback, setFeedback] = useState({ message: "", isError: false });
 
@@ -63,6 +69,9 @@ export function ProfileEditorView({
   const passwordInputRef = useRef(null);
   const canHelpInputRef = useRef(null);
   const needHelpInputRef = useRef(null);
+  const deleteTriggerRef = useRef(null);
+  const deletePwInputRef = useRef(null);
+  const deleteConfirmBtnRef = useRef(null);
 
   const reportStatus = (message, isError = false, mobileShort = null, badField = "") => {
     setInvalidField(isError ? badField : "");
@@ -86,6 +95,10 @@ export function ProfileEditorView({
       setNeedHelpInput("");
       setActiveTab("skills");
       setInvalidField("");
+      setConfirmingDelete(false);
+      setDeletePassword("");
+      setForceShowDeletePw(false);
+      setDeleteError("");
     } else {
       setEditingId(null);
       setHasPassword(false);
@@ -102,6 +115,10 @@ export function ProfileEditorView({
       setUnauthMode("login");
       setActiveTab("skills");
       setInvalidField("");
+      setConfirmingDelete(false);
+      setDeletePassword("");
+      setForceShowDeletePw(false);
+      setDeleteError("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileSyncVersion]);
@@ -262,6 +279,65 @@ export function ProfileEditorView({
     onLogout();
     setUnauthMode("login");
     reportStatus("Wylogowano z profilu.", false, "Wylogowano");
+  };
+
+  const handleOpenDeleteConfirm = () => {
+    reportStatus("", false);
+    setDeleteError("");
+    const initialPw = password || "";
+    setDeletePassword(initialPw);
+    setForceShowDeletePw(!initialPw);
+    setConfirmingDelete(true);
+    requestAnimationFrame(() => {
+      if (!initialPw) {
+        deletePwInputRef.current?.focus();
+      } else {
+        deleteConfirmBtnRef.current?.focus();
+      }
+    });
+  };
+
+  const handleCancelDelete = () => {
+    setConfirmingDelete(false);
+    setDeleteError("");
+    setForceShowDeletePw(false);
+    requestAnimationFrame(() => {
+      deleteTriggerRef.current?.focus();
+    });
+  };
+
+  const handleConfirmDelete = async (e) => {
+    e.preventDefault();
+    if (!editingId) return;
+    setDeleteError("");
+    const effectivePw = deletePassword || password;
+    if (!effectivePw) {
+      setForceShowDeletePw(true);
+      setDeleteError("Podaj hasło profilu, aby potwierdzić usunięcie.");
+      requestAnimationFrame(() => {
+        deletePwInputRef.current?.focus();
+      });
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await apiSend(`/api/profiles/${editingId}`, "DELETE", { password: effectivePw });
+      setConfirmingDelete(false);
+      if (onProfileDeleted) {
+        await onProfileDeleted(editingId);
+      }
+      reportStatus("Profil został usunięty.", false, "Usunięto ✓");
+    } catch (err) {
+      const msg = err.message || "Nie udało się usunąć profilu.";
+      setForceShowDeletePw(true);
+      setDeleteError(msg);
+      requestAnimationFrame(() => {
+        deletePwInputRef.current?.focus();
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -868,7 +944,7 @@ export function ProfileEditorView({
             </div>
 
             <div className="form-actions">
-              <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+              <button type="submit" className="btn btn-primary" disabled={isSubmitting || isDeleting}>
                 {editingId ? "Zapisz zmiany w profilu" : "Zapisz profil"}
               </button>
               <span
@@ -879,8 +955,90 @@ export function ProfileEditorView({
               >
                 {feedback.message}
               </span>
+              {isLoggedIn && editingId && !confirmingDelete && (
+                <button
+                  ref={deleteTriggerRef}
+                  type="button"
+                  className="btn btn-danger-ghost form-actions-end"
+                  onClick={handleOpenDeleteConfirm}
+                >
+                  Usuń profil
+                </button>
+              )}
             </div>
           </form>
+
+          {isLoggedIn && editingId && confirmingDelete && (
+            <form
+              className="delete-confirm-box"
+              aria-labelledby="delete-confirm-title"
+              noValidate
+              onSubmit={handleConfirmDelete}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  handleCancelDelete();
+                }
+              }}
+            >
+              <p id="delete-confirm-title" className="delete-confirm-title">
+                Na pewno trwale usunąć profil „{name.trim() || myProfile?.name || "ten profil"}”? Tej operacji nie można cofnąć.
+              </p>
+
+              {(forceShowDeletePw || !password) && (
+                <div className="sheet-line sheet-line-wrap delete-pw-row">
+                  <label htmlFor="delete-confirm-password" className="sheet-label">
+                    Hasło profilu:
+                  </label>
+                  <div className="inline-entry-group">
+                    <input
+                      ref={deletePwInputRef}
+                      type={showPassword ? "text" : "password"}
+                      id="delete-confirm-password"
+                      name="delete_password"
+                      enterKeyHint="go"
+                      autoComplete="current-password"
+                      required
+                      aria-invalid={deleteError ? "true" : undefined}
+                      aria-describedby={deleteError ? "delete-confirm-error" : undefined}
+                      className="inline-input"
+                      placeholder="wpisz hasło profilu, aby potwierdzić"
+                      maxLength={200}
+                      value={deletePassword}
+                      onChange={(e) => {
+                        setDeletePassword(e.target.value);
+                        if (deleteError) setDeleteError("");
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="delete-confirm-actions">
+                <button
+                  ref={deleteConfirmBtnRef}
+                  type="submit"
+                  className="btn btn-danger"
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? "Usuwanie..." : "Tak, usuń profil"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={isDeleting}
+                  onClick={handleCancelDelete}
+                >
+                  Anuluj
+                </button>
+                {deleteError && (
+                  <span id="delete-confirm-error" className="save-feedback is-error" role="alert">
+                    {deleteError}
+                  </span>
+                )}
+              </div>
+            </form>
+          )}
         </>
       )}
     </section>

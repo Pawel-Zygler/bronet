@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import List, Optional
-from fastapi import FastAPI, Header, HTTPException, Query, Request
+from fastapi import Body, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -16,7 +16,7 @@ from app.database import (
     list_profiles,
     update_profile,
 )
-from app.models import LoginPayload, ProfilePayload, ProfileResponse
+from app.models import DeletePayload, LoginPayload, ProfilePayload, ProfileResponse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = BASE_DIR / "static"
@@ -116,10 +116,12 @@ def api_update_profile(profile_id: int, payload: ProfilePayload) -> dict:
 @app.delete("/api/profiles/{profile_id}")
 def api_delete_profile(
     profile_id: int,
+    payload: Optional[DeletePayload] = Body(default=None),
     x_profile_password: Optional[str] = Header(default=""),
 ) -> dict:
+    effective_password = (payload.password if payload and payload.password else None) or x_profile_password or ""
     try:
-        deleted = delete_profile(profile_id, password=x_profile_password or "")
+        deleted = delete_profile(profile_id, password=effective_password)
     except ProfileAuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc))
     if not deleted:

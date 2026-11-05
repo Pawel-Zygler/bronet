@@ -859,6 +859,59 @@ button:focus-visible {
   flex-wrap: wrap;
 }
 
+.form-actions-end {
+  margin-left: auto;
+}
+
+.btn-danger-ghost {
+  background: transparent;
+  color: #b42318;
+  border-color: rgba(180, 35, 24, 0.28);
+}
+
+.btn-danger-ghost:hover:not(:disabled) {
+  background: #fef3f2;
+  border-color: #b42318;
+}
+
+.btn-danger {
+  background: #b42318;
+  color: #ffffff;
+  border-color: #b42318;
+}
+
+.btn-danger:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.delete-confirm-box {
+  margin-top: 18px;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  border: 1px solid #fecdca;
+  background: #fffbfa;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.delete-confirm-title {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text-strong);
+}
+
+.delete-pw-row {
+  margin: 0;
+}
+
+.delete-confirm-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .save-feedback {
   font-size: 0.9rem;
   color: var(--match-text);

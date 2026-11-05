@@ -250,6 +250,27 @@ export function App() {
     }
   }, [setMyProfile, handleStatusChange]);
 
+  const handleProfileDeleted = useCallback(
+    async (deletedId) => {
+      setSessionPasswords({});
+      setProfiles((prev) => prev.filter((p) => p.id !== deletedId));
+      setProfilesCache((prev) => {
+        const next = { ...prev };
+        delete next[deletedId];
+        return next;
+      });
+      setMyProfile(null, true);
+      setSearchRefreshTick((t) => t + 1);
+      try {
+        const cat = await apiGet("/api/skills");
+        setSkillsCatalog(cat);
+      } catch (_) {
+        // ignore background catalog refresh errors
+      }
+    },
+    [setMyProfile]
+  );
+
   const handleJumpToSkillSearch = useCallback(
     (skill, mode) => {
       setSearchQuery(skill);
@@ -299,6 +320,7 @@ export function App() {
             onSaveSessionPassword={handleSaveSessionPassword}
             onProfileSaved={handleProfileSaved}
             onProfileLoggedIn={handleProfileLoggedIn}
+            onProfileDeleted={handleProfileDeleted}
             onLogout={handleLogout}
             onStatusChange={handleStatusChange}
             onSavingChange={setIsSaving}

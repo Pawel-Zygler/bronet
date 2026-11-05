@@ -117,6 +117,8 @@ class BronetBackendTest(unittest.TestCase):
 
         # Delete requires the updated password
         with self.assertRaises(ProfileAuthError):
+            delete_profile(created["id"], password="")
+        with self.assertRaises(ProfileAuthError):
             delete_profile(created["id"], password="12")
         self.assertTrue(delete_profile(created["id"], password="kawa"))
         self.assertIsNone(get_profile(created["id"]))

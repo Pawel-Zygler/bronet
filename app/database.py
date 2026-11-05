@@ -481,10 +481,10 @@ def delete_profile(profile_id: int, password: str = "") -> bool:
         ).fetchone()
         if not existing:
             return False
+        if not password:
+            raise ProfileAuthError("Podaj hasło profilu, aby go usunąć.")
         stored_hash = existing["password_hash"] or ""
         if stored_hash and not verify_password(password, stored_hash):
-            if not password:
-                raise ProfileAuthError("Ten profil jest chroniony hasłem — podaj hasło, aby go usunąć.")
             raise ProfileAuthError("Nieprawidłowe hasło — nie można usunąć profilu.")
         cur = conn.execute("DELETE FROM profiles WHERE id = ?", (profile_id,))
         return cur.rowcount > 0
