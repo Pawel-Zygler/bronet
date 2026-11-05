@@ -1,20 +1,55 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import {
-  POLAND_BOUNDS,
   POPULAR_CITIES,
   calculateDistanceKm,
   findCityCoords,
-  projectCoords,
 } from "../utils/cities";
 import { normalizeText } from "../utils/text";
+
+const TILE_PROVIDERS = {
+  voyager: {
+    name: "Kolorowa (Apple/Google style)",
+    url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/" target="_blank" rel="noreferrer">CARTO</a>',
+    subdomains: "abcd",
+    maxZoom: 19,
+  },
+  osm: {
+    name: "Standard (OpenStreetMap)",
+    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors',
+    subdomains: "abc",
+    maxZoom: 19,
+  },
+  dark: {
+    name: "Ciemna (Dark Matter)",
+    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/" target="_blank" rel="noreferrer">CARTO</a>',
+    subdomains: "abcd",
+    maxZoom: 19,
+  },
+};
+
+const POLAND_CENTER = [52.0693, 19.4803];
+const DEFAULT_ZOOM = 6;
 
 export function MapView({ myProfile, profiles = [], matchesData = null, onOpenProfile, onNavigate }) {
   const [filterMode, setFilterMode] = useState("all"); // 'all' | 'mutual' | 'i_help' | 'they_help'
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCity, setSelectedCity] = useState("all");
   const [activeProfileId, setActiveProfileId] = useState(null);
-  const [zoomLevel, setZoomLevel] = useState(1);
   const [isListViewOpen, setIsListViewOpen] = useState(false);
+  const [tileMode, setTileMode] = useState("voyager");
+
+  const mapContainerRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const tileLayerRef = useRef(null);
+  const markersGroupRef = useRef(null);
 
   // Zbuduj mapę dopasowań dla zalogowanego użytkownika
   const matchesMap = useMemo(() => {
@@ -52,7 +87,7 @@ export function MapView({ myProfile, profiles = [], matchesData = null, onOpenPr
     return map;
   }, [matchesData]);
 
-  // Profile, które mają współrzędne lub przypisane miasto
+  // Profile z współrzędnymi geograficznymi
   const locatedProfiles = useMemo(() => {
     return profiles
       .filter((p) => p && (p.share_location || (p.lat && p.lng) || p.location_name))
@@ -73,7 +108,6 @@ export function MapView({ myProfile, profiles = [], matchesData = null, onOpenPr
         const matchInfo = matchesMap[p.id] || null;
         let matchType = matchInfo ? matchInfo.type : "none";
 
-        // Odległość od zalogowanego chłopa (jeśli zalogowany ma współrzędne)
         let distanceKm = null;
         if (myProfile && myProfile.lat && myProfile.lng && lat && lng) {
           distanceKm = calculateDistanceKm(myProfile.lat, myProfile.lng, lat, lng);
@@ -92,7 +126,7 @@ export function MapView({ myProfile, profiles = [], matchesData = null, onOpenPr
       .filter((p) => p.lat != null && p.lng != null);
   }, [profiles, matchesMap, myProfile]);
 
-  // Filtrowanie profili na mapie
+  // Filtrowanie profili
   const filteredProfiles = useMemo(() => {
     const qNorm = normalizeText(searchQuery);
 
@@ -108,7 +142,7 @@ export function MapView({ myProfile, profiles = [], matchesData = null, onOpenPr
         if (normalizeText(p.cityName) !== normalizeText(selectedCity)) return false;
       }
 
-      // Filtr wyszukiwarki (miasto, umiejętności, imię)
+      // Filtr wyszukiwarki tekstowej
       if (qNorm) {
         const nameNorm = normalizeText(p.name);
         const cityNorm = normalizeText(p.cityName);
@@ -138,13 +172,168 @@ export function MapView({ myProfile, profiles = [], matchesData = null, onOpenPr
     (p) => p.matchType === "they_help" || p.matchType === "mutual"
   ).length;
 
-  const handleMarkerClick = (profile) => {
-    setActiveProfileId(profile.id === activeProfileId ? null : profile.id);
+  // Inicjalizacja instancji Leaflet
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+    if (mapInstanceRef.current) return;
+
+    const map = L.map(mapContainerRef.current, {
+      center: POLAND_CENTER,
+      zoom: DEFAULT_ZOOM,
+      minZoom: 5,
+      maxZoom: 18,
+      zoomControl: false,
+      scrollWheelZoom: true,
+    });
+
+    const activeTile = TILE_PROVIDERS[tileMode] || TILE_PROVIDERS.voyager;
+    const tileLayer = L.tileLayer(activeTile.url, {
+      attribution: activeTile.attribution,
+      subdomains: activeTile.subdomains,
+      maxZoom: activeTile.maxZoom,
+    }).addTo(map);
+
+    tileLayerRef.current = tileLayer;
+
+    const markersGroup = L.layerGroup().addTo(map);
+    markersGroupRef.current = markersGroup;
+    mapInstanceRef.current = map;
+
+    // Obsługa kliknięć natywnych w kontenerze mapy
+    const container = mapContainerRef.current;
+    const handleNativeMarkerClick = (e) => {
+      const markerEl = e.target.closest("[data-profile-id]");
+      if (markerEl) {
+        const id = Number(markerEl.getAttribute("data-profile-id"));
+        if (id) {
+          setActiveProfileId(id);
+        }
+      }
+    };
+    container.addEventListener("click", handleNativeMarkerClick);
+
+    window.__bronetSelectProfile = (id) => {
+      setActiveProfileId(id);
+    };
+
+    // Wymuś prawidłowe wymiary kafelków po zamontowaniu
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 150);
+
+    return () => {
+      delete window.__bronetSelectProfile;
+      container.removeEventListener("click", handleNativeMarkerClick);
+      map.remove();
+      mapInstanceRef.current = null;
+      tileLayerRef.current = null;
+      markersGroupRef.current = null;
+    };
+  }, []);
+
+  // Przełączanie stylu kafelków (Voyager / OSM / Dark)
+  useEffect(() => {
+    if (!mapInstanceRef.current || !tileLayerRef.current) return;
+    const activeTile = TILE_PROVIDERS[tileMode] || TILE_PROVIDERS.voyager;
+    tileLayerRef.current.setUrl(activeTile.url);
+  }, [tileMode]);
+
+  // Synchronizacja pinezek na mapie Leaflet
+  useEffect(() => {
+    if (!mapInstanceRef.current || !markersGroupRef.current) return;
+
+    const markersGroup = markersGroupRef.current;
+    markersGroup.clearLayers();
+
+    filteredProfiles.forEach((p) => {
+      // Spiralny jitter współrzędnych zapobiegający nakładaniu się profili w jednym mieście
+      const angle = ((p.id * 137.5) % 360) * (Math.PI / 180);
+      const radius = 0.003 + (p.id % 5) * 0.0025;
+      const displayLat = p.lat + radius * Math.cos(angle);
+      const displayLng = p.lng + radius * Math.sin(angle) * 1.4;
+
+      const isMutual = p.matchType === "mutual";
+      const isMe = myProfile && myProfile.id === p.id;
+
+      let pinClass = "pin-default";
+      let symbol = "👨";
+      if (isMe) {
+        pinClass = "pin-me";
+        symbol = "📍";
+      } else if (isMutual) {
+        pinClass = "pin-mutual";
+        symbol = "🤝";
+      } else if (p.matchType === "i_help") {
+        pinClass = "pin-i-help";
+        symbol = "📤";
+      } else if (p.matchType === "they_help") {
+        pinClass = "pin-they-help";
+        symbol = "📥";
+      }
+
+      const isSelected = activeProfileId === p.id;
+      const displayName = (p.name || "Chłop").split(" ")[0];
+
+      const html = `
+        <div id="map-marker-${p.id}" class="bronet-leaflet-marker ${pinClass} ${
+        isSelected ? "is-active" : ""
+      }" data-profile-id="${p.id}" onclick="window.__bronetSelectProfile && window.__bronetSelectProfile(${p.id})" title="${p.name} (${p.cityName})">
+          <div class="marker-bubble">
+            <span class="marker-icon">${symbol}</span>
+            ${isMutual ? '<span class="marker-pulse"></span>' : ""}
+          </div>
+          <div class="marker-label">${displayName}</div>
+        </div>
+      `;
+
+      const customIcon = L.divIcon({
+        className: "bronet-div-icon-wrapper",
+        html: html,
+        iconSize: [38, 48],
+        iconAnchor: [19, 44],
+        popupAnchor: [0, -44],
+      });
+
+      const marker = L.marker([displayLat, displayLng], {
+        icon: customIcon,
+        zIndexOffset: isMutual ? 600 : isMe ? 500 : isSelected ? 700 : 100,
+      });
+
+      marker.on("click", (e) => {
+        L.DomEvent.stopPropagation(e);
+        setActiveProfileId(p.id);
+      });
+
+      markersGroup.addLayer(marker);
+    });
+  }, [filteredProfiles, activeProfileId, myProfile]);
+
+  // Centrowanie mapy po wybraniu miasta z listy
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    if (selectedCity && selectedCity !== "all") {
+      const city = POPULAR_CITIES.find((c) => c.name === selectedCity);
+      if (city) {
+        mapInstanceRef.current.flyTo([city.lat, city.lng], 11, { duration: 1.2 });
+      }
+    } else if (selectedCity === "all") {
+      mapInstanceRef.current.flyTo(POLAND_CENTER, DEFAULT_ZOOM, { duration: 1 });
+    }
+  }, [selectedCity]);
+
+  const handleZoomIn = () => mapInstanceRef.current?.zoomIn();
+  const handleZoomOut = () => mapInstanceRef.current?.zoomOut();
+  const handleZoomReset = () => {
+    mapInstanceRef.current?.setView(POLAND_CENTER, DEFAULT_ZOOM);
+    setSelectedCity("all");
   };
 
-  const handleZoomIn = () => setZoomLevel((z) => Math.min(z + 0.25, 2.5));
-  const handleZoomOut = () => setZoomLevel((z) => Math.max(z - 0.25, 0.75));
-  const handleZoomReset = () => setZoomLevel(1);
+  const handleFocusProfile = (profile) => {
+    setActiveProfileId(profile.id);
+    if (mapInstanceRef.current && profile.lat && profile.lng) {
+      mapInstanceRef.current.flyTo([profile.lat, profile.lng], 12, { duration: 1 });
+    }
+  };
 
   return (
     <section id="view-map" className="view view-animate" aria-labelledby="map-heading">
@@ -153,7 +342,7 @@ export function MapView({ myProfile, profiles = [], matchesData = null, onOpenPr
           Mapa Chłopów
         </h1>
         <p className="hero-subtitle">
-          zobacz, gdzie są chłopy w Twojej okolicy i z kim możesz wymienić się pomocą 1:1
+          prawdziwa interaktywna mapa z chłopami w Twojej okolicy i dopasowaniami 1:1
           <br />
           <br />
           bez pośredników. bez ściemy. chłop pomaga chłopu blisko domu.
@@ -285,7 +474,7 @@ export function MapView({ myProfile, profiles = [], matchesData = null, onOpenPr
               type="search"
               id="map-search-input"
               className="inline-input map-search-input"
-              placeholder="Filtruj mapę (np. miasto, qa, hydraulik)..."
+              placeholder="Filtruj mapę (np. miasto, programista, hydraulik)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -317,6 +506,23 @@ export function MapView({ myProfile, profiles = [], matchesData = null, onOpenPr
                   {c.name}
                 </option>
               ))}
+            </select>
+          </div>
+
+          <div className="map-tile-picker">
+            <label htmlFor="map-tile-select" className="visually-hidden">
+              Styl mapy:
+            </label>
+            <select
+              id="map-tile-select"
+              className="matching-select"
+              value={tileMode}
+              onChange={(e) => setTileMode(e.target.value)}
+              title="Wybierz styl mapy"
+            >
+              <option value="voyager">🗺️ Kolorowa (Apple/Google)</option>
+              <option value="osm">🌍 OpenStreetMap Standard</option>
+              <option value="dark">🌙 Ciemna (Dark Mode)</option>
             </select>
           </div>
 
@@ -353,7 +559,7 @@ export function MapView({ myProfile, profiles = [], matchesData = null, onOpenPr
         </div>
       </div>
 
-      {/* Kontener Mapy */}
+      {/* Kontener Prawdziwej Mapy Leaflet */}
       <div className="map-viewport-container">
         {/* Przyciski Zoom */}
         <div className="map-zoom-controls" role="group" aria-label="Kontrolki zoomu mapy">
@@ -381,7 +587,7 @@ export function MapView({ myProfile, profiles = [], matchesData = null, onOpenPr
             type="button"
             id="map-zoom-reset"
             className="map-zoom-btn"
-            title="Resetuj widok"
+            title="Resetuj widok do całej Polski"
             aria-label="Resetuj widok"
             onClick={handleZoomReset}
           >
@@ -389,181 +595,18 @@ export function MapView({ myProfile, profiles = [], matchesData = null, onOpenPr
           </button>
         </div>
 
-        <div className="map-svg-wrapper">
-          <svg
-            id="poland-profile-map"
-            className="map-svg"
-            viewBox="0 0 900 700"
-            role="region"
-            aria-label="Interaktywna mapa Polski z profilami chłopów"
-            style={{
-              transform: `scale(${zoomLevel})`,
-              transformOrigin: "center center",
-              transition: "transform 0.25s ease-out",
-            }}
-          >
-            {/* Tło i kontur Polski */}
-            <defs>
-              <linearGradient id="mapBgGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#1e2430" />
-                <stop offset="100%" stopColor="#12161f" />
-              </linearGradient>
-              <filter id="glow-gold" x="-50%" y="-50%" width="200%" height="200%">
-                <feGaussianBlur stdDeviation="4" result="coloredBlur" />
-                <feMerge>
-                  <feMergeNode in="coloredBlur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
-            </defs>
+        {/* Prawdziwe płótno mapy Leaflet */}
+        <div
+          id="poland-profile-map"
+          ref={mapContainerRef}
+          className="leaflet-map-canvas"
+          role="region"
+          aria-label="Interaktywna mapa Polski z profilami chłopów"
+        />
 
-            {/* Obszar tła */}
-            <rect width="900" height="700" rx="16" fill="url(#mapBgGrad)" />
-
-            {/* Kontur granic Polski (uproszczony realistyczny wielokąt granic RP) */}
-            <polygon
-              className="poland-outline"
-              points="
-                135,145 220,105 320,80 430,70 540,85 640,115 720,135 770,190
-                805,250 815,340 790,440 780,510 740,580 670,640 590,650 500,640
-                430,620 370,610 300,590 220,550 160,500 130,420 120,330 115,240 135,145
-              "
-              fill="#252e3d"
-              stroke="#3a485f"
-              strokeWidth="2.5"
-              strokeLinejoin="round"
-            />
-
-            {/* Wewnętrzne subtelne linie orientacyjne */}
-            <path
-              d="M 430,70 Q 520,300 480,630"
-              fill="none"
-              stroke="#2e3a4e"
-              strokeWidth="1.2"
-              strokeDasharray="4 4"
-            />
-            <path
-              d="M 125,240 Q 400,280 815,340"
-              fill="none"
-              stroke="#2e3a4e"
-              strokeWidth="1.2"
-              strokeDasharray="4 4"
-            />
-
-            {/* Etykiety głównych miast referencyjnych w tle */}
-            {POPULAR_CITIES.slice(0, 10).map((c) => {
-              const pt = projectCoords(c.lat, c.lng);
-              if (!pt) return null;
-              return (
-                <g key={c.name} className="city-reference" opacity="0.45">
-                  <circle cx={pt.x} cy={pt.y} r="2.5" fill="#8892b0" />
-                  <text
-                    x={pt.x + 5}
-                    y={pt.y - 4}
-                    fontSize="10"
-                    fill="#8892b0"
-                    fontFamily="inherit"
-                    fontWeight="500"
-                  >
-                    {c.name}
-                  </text>
-                </g>
-              );
-            })}
-
-            {/* Marker zalogowanego użytkownika (jeśli posiada współrzędne) */}
-            {myProfile && myProfile.lat && myProfile.lng && (
-              (() => {
-                const myPt = projectCoords(myProfile.lat, myProfile.lng);
-                if (!myPt) return null;
-                return (
-                  <g className="my-location-marker">
-                    <circle cx={myPt.x} cy={myPt.y} r="14" fill="none" stroke="#22c55e" strokeWidth="2" opacity="0.6">
-                      <animate attributeName="r" values="8;18;8" dur="2.5s" repeatCount="indefinite" />
-                      <animate attributeName="opacity" values="0.8;0.1;0.8" dur="2.5s" repeatCount="indefinite" />
-                    </circle>
-                    <circle cx={myPt.x} cy={myPt.y} r="6" fill="#22c55e" stroke="#ffffff" strokeWidth="2" />
-                    <text x={myPt.x} y={myPt.y - 12} textAnchor="middle" fontSize="10" fill="#4ade80" fontWeight="bold">
-                      Ty
-                    </text>
-                  </g>
-                );
-              })()
-            )}
-
-            {/* Pinezki profili chłopów */}
-            {filteredProfiles.map((p) => {
-              const pt = projectCoords(p.lat, p.lng);
-              if (!pt) return null;
-
-              const isSelected = p.id === activeProfileId;
-              const isMutual = p.matchType === "mutual";
-              const isHelp = p.matchType === "i_help" || p.matchType === "they_help";
-
-              const pinColor = isMutual ? "#f59e0b" : isHelp ? "#3b82f6" : "#94a3b8";
-              const pinGlow = isMutual ? "url(#glow-gold)" : undefined;
-
-              return (
-                <g
-                  key={p.id}
-                  id={`map-marker-${p.id}`}
-                  className={`profile-marker ${isSelected ? "is-selected" : ""} ${
-                    isMutual ? "is-mutual-marker" : ""
-                  }`}
-                  transform={`translate(${pt.x}, ${pt.y})`}
-                  onClick={() => handleMarkerClick(p)}
-                  cursor="pointer"
-                  role="button"
-                  aria-label={`Profil ${p.name}, miasto: ${p.cityName}`}
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      handleMarkerClick(p);
-                    }
-                  }}
-                >
-                  {/* Efekt pulsowania dla dopasowań 1:1 */}
-                  {isMutual && (
-                    <circle cx="0" cy="-14" r="14" fill="#f59e0b" opacity="0.3">
-                      <animate attributeName="r" values="10;22;10" dur="2s" repeatCount="indefinite" />
-                      <animate attributeName="opacity" values="0.4;0.05;0.4" dur="2s" repeatCount="indefinite" />
-                    </circle>
-                  )}
-
-                  {/* Kształt pinezki */}
-                  <path
-                    d="M 0,0 C -6,-10 -10,-15 -10,-22 A 10,10 0 1,1 10,-22 C 10,-15 6,-10 0,0 Z"
-                    fill={pinColor}
-                    stroke="#ffffff"
-                    strokeWidth={isSelected ? "2.5" : "1.2"}
-                    filter={pinGlow}
-                  />
-
-                  {/* Ikona wewnątrz główki pinezki */}
-                  <circle cx="0" cy="-22" r="4.5" fill="#ffffff" />
-
-                  {/* Etykieta imienia pod pinezką */}
-                  <text
-                    x="0"
-                    y="13"
-                    textAnchor="middle"
-                    fontSize={isSelected ? "11" : "9.5"}
-                    fontWeight={isSelected || isMutual ? "bold" : "normal"}
-                    fill={isSelected ? "#ffffff" : isMutual ? "#fbbf24" : "#cbd5e1"}
-                    className="marker-label-text"
-                  >
-                    {isMutual ? `🤝 ${p.name}` : p.name}
-                  </text>
-                </g>
-              );
-            })}
-          </svg>
-        </div>
-
-        {/* Szczegółowa karta wybranego chłopa */}
+        {/* Karta szczegółów wybranego chłopa (Floating Detail Card) */}
         {activeProfile && (
-          <div className="map-detail-card" role="dialog" aria-label={`Szczegóły profilu ${activeProfile.name}`}>
+          <div className="map-detail-card" role="dialog" aria-labelledby="map-card-name">
             <button
               type="button"
               className="map-card-close"
@@ -575,7 +618,7 @@ export function MapView({ myProfile, profiles = [], matchesData = null, onOpenPr
 
             <div className="map-card-header">
               <div>
-                <h3 className="map-card-name">
+                <h3 className="map-card-name" id="map-card-name">
                   <a
                     href={`/profil/${activeProfile.id}`}
                     onClick={(e) => {
@@ -663,45 +706,116 @@ export function MapView({ myProfile, profiles = [], matchesData = null, onOpenPr
         )}
       </div>
 
-      {/* Rozwijana lista profili z mapy */}
+      {/* Opcjonalny widok listy pod mapą */}
       {isListViewOpen && (
-        <div className="map-profiles-list-section" role="region" aria-label="Lista profili na mapie">
-          <h2 className="section-subheading">
-            Chłopy na mapie ({filteredProfiles.length})
-          </h2>
-          <div className="map-profiles-grid">
-            {filteredProfiles.map((p) => {
+        <div className="map-list-view">
+          <div className="matching-section-header">
+            <h3>Chłopy na mapie w tym widoku ({filteredProfiles.length})</h3>
+            <p className="section-desc">
+              Kliknij „Zobacz na mapie”, aby przybliżyć punkt konkretnego chłopa.
+            </p>
+          </div>
+
+          <div className="matching-grid">
+            {filteredProfiles.slice(0, 30).map((p) => {
+              const isMutual = p.matchType === "mutual";
               const isSelected = p.id === activeProfileId;
+
               return (
-                <div
+                <article
                   key={p.id}
-                  className={`map-list-item ${isSelected ? "is-selected" : ""}`}
-                  onClick={() => {
-                    setActiveProfileId(p.id);
-                    window.scrollTo({ top: 380, behavior: "smooth" });
-                  }}
-                  role="button"
-                  tabIndex={0}
+                  className={`matching-card ${isMutual ? "is-mutual" : ""} ${
+                    isSelected ? "is-selected" : ""
+                  }`}
                 >
-                  <div className="map-item-header">
-                    <strong>{p.name}</strong>
-                    <span className="map-item-city">📍 {p.cityName}</span>
+                  <header className="matching-card-header">
+                    <div>
+                      <h4 className="matching-card-title">
+                        <a
+                          href={`/profil/${p.id}`}
+                          onClick={(e) => {
+                            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                            e.preventDefault();
+                            onOpenProfile(p);
+                          }}
+                        >
+                          {p.name}
+                        </a>
+                      </h4>
+                      <div className="matching-card-location">
+                        📍 {p.cityName}
+                        {p.distanceKm != null && <span> • ~{p.distanceKm} km</span>}
+                      </div>
+                    </div>
+
+                    {isMutual ? (
+                      <span className="badge badge-mutual">🤝 Wzajemne 1:1</span>
+                    ) : (
+                      <span className="badge badge-subtle">
+                        {p.matchType === "i_help"
+                          ? "Możesz pomóc"
+                          : p.matchType === "they_help"
+                          ? "Może pomóc"
+                          : "Na mapie"}
+                      </span>
+                    )}
+                  </header>
+
+                  <div className="matching-card-body">
+                    <div className="matching-skills-group">
+                      <span className="matching-label">Pomoże w:</span>
+                      <div className="tag-list">
+                        {(p.can_help || []).slice(0, 4).map((s) => (
+                          <span key={s} className="tag tag-can">
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="matching-skills-group">
+                      <span className="matching-label">Szuka pomocy w:</span>
+                      <div className="tag-list">
+                        {(p.need_help || []).slice(0, 4).map((s) => (
+                          <span key={s} className="tag tag-need">
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                  <div className="map-item-skills">
-                    <span>Umiem: {p.can_help?.slice(0, 2).join(", ") || "—"}</span>
-                  </div>
-                  {p.matchType === "mutual" && (
-                    <span className="badge badge-mutual" style={{ marginTop: 4 }}>
-                      🤝 1:1
-                    </span>
-                  )}
-                </div>
+
+                  <footer className="matching-card-footer">
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => handleFocusProfile(p)}
+                    >
+                      Pokaż na mapie 📍
+                    </button>
+                    {p.email && (
+                      <a
+                        href={`mailto:${p.email}?subject=${encodeURIComponent(
+                          `Kontakt z mapy Bronet: ${p.name}`
+                        )}`}
+                        className="btn btn-primary btn-sm"
+                      >
+                        Napisz e-mail
+                      </a>
+                    )}
+                  </footer>
+                </article>
               );
             })}
           </div>
+          {filteredProfiles.length > 30 && (
+            <p className="pagination-info" style={{ marginTop: 16 }}>
+              Pokazano 30 z {filteredProfiles.length} profili. Przybliż mapę lub wybierz konkretne
+              miasto, aby zawęzić wyniki.
+            </p>
+          )}
         </div>
       )}
     </section>
   );
 }
-
