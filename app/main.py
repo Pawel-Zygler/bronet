@@ -52,7 +52,7 @@ def health() -> dict:
 
 @app.get("/api/profiles", response_model=List[ProfileResponse])
 def api_list_profiles(
-    q: str = Query(default="", description="Szukana umiejętność lub imię"),
+    q: str = Query(default="", description="Szukana umiejętność, imię lub e-mail"),
     mode: str = Query(default="all", description="all | can_help | need_help"),
 ) -> List[dict]:
     allowed_modes = {"all", "can_help", "need_help"}

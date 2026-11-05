@@ -323,16 +323,19 @@ def list_profiles(query: str = "", mode: str = "all") -> List[Dict[str, Any]]:
         can_norms = [normalize_text(s) for s in p["can_help"]]
         need_norms = [normalize_text(s) for s in p["need_help"]]
         name_norm = normalize_text(p["name"])
+        email_norm = normalize_text(p.get("email") or "")
+        contact_norm = normalize_text(p.get("contact") or "")
         bio_norm = normalize_text(p["bio"])
 
         matched = False
         for term in terms:
+            is_email_match = term in email_norm or ("@" in contact_norm and term in contact_norm)
             if mode == "can_help":
-                if any(term in s for s in can_norms):
+                if any(term in s for s in can_norms) or ("@" in term and is_email_match):
                     matched = True
                     break
             elif mode == "need_help":
-                if any(term in s for s in need_norms):
+                if any(term in s for s in need_norms) or ("@" in term and is_email_match):
                     matched = True
                     break
             else:
@@ -340,6 +343,7 @@ def list_profiles(query: str = "", mode: str = "all") -> List[Dict[str, Any]]:
                     any(term in s for s in can_norms)
                     or any(term in s for s in need_norms)
                     or term in name_norm
+                    or is_email_match
                     or term in bio_norm
                 ):
                     matched = True

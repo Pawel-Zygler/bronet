@@ -87,8 +87,8 @@ export function HomeView({
               type="search"
               id="search-input"
               className="search-input"
-              aria-label="Szukaj po umiejętnościach lub imieniu"
-              placeholder="Szukaj po umiejętnościach lub imieniu (np. qa, it, finanse, związki)..."
+              aria-label="Szukaj po umiejętnościach, imieniu lub e-mailu"
+              placeholder="Szukaj po umiejętnościach, imieniu lub e-mailu (np. qa, it, finanse)..."
               enterKeyHint="search"
               autoComplete="off"
               value={searchQuery}

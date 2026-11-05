@@ -46,6 +46,14 @@ class BronetBackendTest(unittest.TestCase):
         can_sdlc = list_profiles(query="sdlc", mode="can_help")
         self.assertTrue(any(p["name"] == "Tomek" for p in can_sdlc))
 
+        by_email = list_profiles(query="marek@bronet.pl", mode="all")
+        self.assertEqual(len(by_email), 1)
+        self.assertEqual(by_email[0]["name"], "Marek")
+
+        by_email_in_skill_mode = list_profiles(query="tomek@bronet.pl", mode="can_help")
+        self.assertEqual(len(by_email_in_skill_mode), 1)
+        self.assertEqual(by_email_in_skill_mode[0]["name"], "Tomek")
+
     def test_crud_and_matching(self) -> None:
         # Password is required on profile creation
         with self.assertRaises(ProfileAuthError):
