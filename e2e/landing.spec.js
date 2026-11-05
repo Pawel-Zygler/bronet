@@ -49,4 +49,33 @@ test.describe("Landing & Search", () => {
       await expect(page.locator("#login-password")).toBeVisible();
     }
   );
+
+  test(
+    "przełącza widok na compact view i wyświetla zwięzłe wiersze profili z przyciskiem email",
+    { tag: ["@smoke", "@regression"] },
+    async ({ page }) => {
+      await page.goto("/");
+
+      const compactBtn = page.locator("#compact-view-toggle");
+      await expect(compactBtn).toBeVisible();
+
+      // Przełącz na kompaktowy widok
+      await compactBtn.click();
+      await expect(compactBtn).toHaveAttribute("aria-pressed", "true");
+
+      const compactList = page.locator(".compact-profiles-list");
+      await expect(compactList).toBeVisible();
+
+      const firstItem = page.locator(".compact-profile-item").first();
+      await expect(firstItem).toBeVisible();
+      await expect(firstItem.locator(".compact-label").first()).toHaveText("pomaga z:");
+      await expect(firstItem.locator(".compact-email-btn")).toBeVisible();
+      await expect(firstItem.locator(".compact-profile-link")).toBeVisible();
+
+      // Przełącz z powrotem na widok standardowy
+      await compactBtn.click();
+      await expect(compactBtn).toHaveAttribute("aria-pressed", "false");
+      await expect(page.locator(".compact-profiles-list")).toHaveCount(0);
+    }
+  );
 });

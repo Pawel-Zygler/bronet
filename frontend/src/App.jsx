@@ -8,6 +8,7 @@ import { ProfileEditorView } from "./views/ProfileEditorView";
 
 const STORAGE_KEY_MY_PROFILE = "bronet_my_profile_id";
 const STORAGE_KEY_MY_PROFILE_CACHE = "bronet_my_profile_cache";
+const STORAGE_KEY_COMPACT_VIEW = "bronet_compact_view";
 
 function loadStoredProfile() {
   try {
@@ -55,6 +56,24 @@ export function App() {
   const [searchError, setSearchError] = useState("");
   const [searchRefreshTick, setSearchRefreshTick] = useState(0);
   const [immediateSearchTick, setImmediateSearchTick] = useState(0);
+
+  const [isCompactView, setIsCompactView] = useState(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEY_COMPACT_VIEW) === "true";
+    } catch (_) {
+      return false;
+    }
+  });
+
+  const handleToggleCompactView = useCallback(() => {
+    setIsCompactView((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(STORAGE_KEY_COMPACT_VIEW, String(next));
+      } catch (_) {}
+      return next;
+    });
+  }, []);
 
   // Mobile sticky save bar state
   const [showMobileSave, setShowMobileSave] = useState(Boolean(myProfile));
@@ -149,30 +168,25 @@ export function App() {
     const isImmediate = immediateSearchTick !== prevImmediateRef.current;
     prevImmediateRef.current = immediateSearchTick;
 
-    if (!trimmed) {
-      setProfiles([]);
-      setIsSearching(false);
-      setSearchError("");
-      return;
-    }
-
     const controller = new AbortController();
     setIsSearching(true);
     setSearchError("");
 
-    const delay = isImmediate ? 0 : 100;
+    const delay = isImmediate || !trimmed ? 0 : 100;
     const timer = setTimeout(() => {
-      apiGet(
-        `/api/profiles?q=${encodeURIComponent(trimmed)}&mode=${encodeURIComponent(searchMode)}`,
-        controller.signal
-      )
+      const url = trimmed
+        ? `/api/profiles?q=${encodeURIComponent(trimmed)}&mode=${encodeURIComponent(searchMode)}`
+        : `/api/profiles?mode=${encodeURIComponent(searchMode)}`;
+      apiGet(url, controller.signal)
         .then((list) => {
-          setProfiles(list);
+          setProfiles(Array.isArray(list) ? list : []);
           setProfilesCache((prev) => {
             const next = { ...prev };
-            list.forEach((p) => {
-              next[p.id] = p;
-            });
+            if (Array.isArray(list)) {
+              list.forEach((p) => {
+                next[p.id] = p;
+              });
+            }
             return next;
           });
           setIsSearching(false);
@@ -293,6 +307,8 @@ export function App() {
         isSaving={isSaving}
         mobileHint={mobileHint}
         mobileHintError={mobileHintError}
+        isCompactView={isCompactView}
+        onToggleCompactView={handleToggleCompactView}
       />
 
       <main className="container" id="app-root" tabIndex={-1}>
@@ -305,6 +321,7 @@ export function App() {
             isSearching={isSearching}
             searchError={searchError}
             myProfile={myProfile}
+            isCompactView={isCompactView}
             onSearchChange={handleSearchChange}
             onSearchSubmit={handleSearchSubmit}
             onOpenProfile={handleOpenProfile}

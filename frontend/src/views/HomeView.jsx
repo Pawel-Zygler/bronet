@@ -22,8 +22,8 @@ export function HomeView({
     searchMode === "can_help"
       ? skillsCatalog.can_help
       : searchMode === "need_help"
-        ? skillsCatalog.need_help
-        : skillsCatalog.all;
+      ? skillsCatalog.need_help
+      : skillsCatalog.all;
 
   const popularItems = (popularSource || []).slice(0, 12);
 
@@ -51,8 +51,8 @@ export function HomeView({
     searchMode === "can_help"
       ? "w sekcji „Umiem”"
       : searchMode === "need_help"
-        ? "w sekcji „Potrzebuję”"
-        : "";
+      ? "w sekcji „Potrzebuję”"
+      : "";
 
   return (
     <section id="view-home" className="view view-animate" aria-labelledby="home-heading">
@@ -61,10 +61,8 @@ export function HomeView({
           Jeden chłop pomaga drugiemu
         </h1>
         <p className="hero-subtitle">
-          chłop pomaga chłopu za free, aby sobie chłopy pomagały nawzajem
-          <br />
-          <br />
-          no women. no money. no bs
+          Zapisz w profilu co <strong>umiesz</strong> i czego <strong>potrzebujesz</strong>. Wyszukaj
+          ludzi po umiejętnościach i wymieńcie się konkretną pomocą. Serwis tylko dla mężczyzn.
         </p>
       </div>
 
