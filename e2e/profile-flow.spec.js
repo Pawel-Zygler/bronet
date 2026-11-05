@@ -3,7 +3,7 @@ const { test, expect } = require("@playwright/test");
 test.describe("Profile lifecycle", () => {
   test(
     "auto-zakładanie profilu przy braku konta, wyszukiwanie po e-mailu, ponowne logowanie i usunięcie profilu",
-    { tag: ["@regression"] },
+    { tag: ["@smoke", "@regression"] },
     async ({ page, request }) => {
       const uniqueId = `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
       const testEmail = `e2e.${uniqueId}@bronet.test`;
