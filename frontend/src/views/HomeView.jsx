@@ -62,7 +62,7 @@ export function HomeView({
         </h1>
         <p className="hero-subtitle">
           Zapisz w profilu co <strong>umiesz</strong> i czego <strong>potrzebujesz</strong>. Wyszukaj
-          ludzi po umiejętnościach i wymieńcie się konkretną pomocą.
+          ludzi po umiejętnościach i wymieńcie się konkretną pomocą. Serwis tylko dla mężczyzn.
         </p>
       </div>
 
