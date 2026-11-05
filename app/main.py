@@ -36,7 +36,7 @@ async def revalidate_static_and_spa(request: Request, call_next):
     path = request.url.path
     if path.startswith("/static/assets/"):
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
-    elif path == "/" or path.startswith("/profil") or path.startswith("/dopasowania") or path.startswith("/static/"):
+    elif path == "/" or path.startswith("/profil") or path.startswith("/dopasowania") or path.startswith("/mapa") or path.startswith("/static/"):
         response.headers["Cache-Control"] = "no-cache, must-revalidate"
     return response
 
@@ -157,6 +157,7 @@ def serve_manifest() -> FileResponse:
 
 @app.get("/", include_in_schema=False)
 @app.get("/dopasowania", include_in_schema=False)
+@app.get("/mapa", include_in_schema=False)
 @app.get("/profil", include_in_schema=False)
 @app.get("/profil/{profile_id}", include_in_schema=False)
 def serve_spa(profile_id: str = "") -> FileResponse:

@@ -36,6 +36,19 @@ export function MobileNav({ activeNav, myProfile, onNavigate }) {
         <span>Dopasowania</span>
       </a>
       <a
+        href="/mapa"
+        aria-current={activeNav === "map" ? "page" : undefined}
+        className={`mobile-nav-item ${activeNav === "map" ? "is-active" : ""}`}
+        onClick={(e) => handleLink(e, "/mapa")}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+          <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+          <line x1="9" y1="3" x2="9" y2="18" />
+          <line x1="15" y1="6" x2="15" y2="21" />
+        </svg>
+        <span>Mapa</span>
+      </a>
+      <a
         href="/profil"
         aria-current={activeNav === "profile" ? "page" : undefined}
         className={`mobile-nav-item ${activeNav === "profile" ? "is-active" : ""}`}

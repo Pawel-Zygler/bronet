@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiSend } from "../api";
+import { POPULAR_CITIES, findCityCoords } from "../utils/cities";
 import { isFemaleName, mergeUniqueSkills, normalizeText } from "../utils/text";
 
 const DEFAULT_CAN_SUGGESTIONS = ["qa", "it", "związki", "relacje męsko-damskie", "ux/ui", "finanse"];
@@ -7,6 +8,7 @@ const DEFAULT_NEED_SUGGESTIONS = ["finanse", "sdlc", "realizacja pomysłów", "i
 
 const EDITOR_TABS = [
   { key: "skills", label: "Umiejętności" },
+  { key: "location", label: "Lokalizacja" },
   { key: "contact", label: "Kontakt" },
   { key: "bio", label: "O mnie" },
   { key: "auth", label: "Dane logowania" },
@@ -45,6 +47,11 @@ export function ProfileEditorView({
 
   const [contact, setContact] = useState(myProfile?.contact || "");
   const [bio, setBio] = useState(myProfile?.bio || "");
+  const [locationName, setLocationName] = useState(myProfile?.location_name || "");
+  const [lat, setLat] = useState(myProfile?.lat ?? null);
+  const [lng, setLng] = useState(myProfile?.lng ?? null);
+  const [shareLocation, setShareLocation] = useState(Boolean(myProfile?.share_location));
+  const [isGettingGps, setIsGettingGps] = useState(false);
 
   const [canHelpList, setCanHelpList] = useState(myProfile?.can_help || []);
   const [needHelpList, setNeedHelpList] = useState(myProfile?.need_help || []);
@@ -90,6 +97,10 @@ export function ProfileEditorView({
       setNewPassword("");
       setContact(myProfile.contact || "");
       setBio(myProfile.bio || "");
+      setLocationName(myProfile.location_name || "");
+      setLat(myProfile.lat ?? null);
+      setLng(myProfile.lng ?? null);
+      setShareLocation(Boolean(myProfile.share_location));
       setCanHelpList(myProfile.can_help || []);
       setNeedHelpList(myProfile.need_help || []);
       setCanHelpInput("");
@@ -110,6 +121,10 @@ export function ProfileEditorView({
       setNewPassword("");
       setContact("");
       setBio("");
+      setLocationName("");
+      setLat(null);
+      setLng(null);
+      setShareLocation(false);
       setCanHelpList([]);
       setNeedHelpList([]);
       setCanHelpInput("");
@@ -422,6 +437,10 @@ export function ProfileEditorView({
       need_help: nextNeed,
       contact: contact.trim(),
       bio: bio.trim(),
+      location_name: locationName.trim(),
+      lat,
+      lng,
+      share_location: shareLocation,
     };
 
     setIsSubmitting(true);
@@ -805,7 +824,131 @@ export function ProfileEditorView({
               </div>
             </div>
 
-            {/* Zakładka 2: Kontakt */}
+            {/* Zakładka 2: Lokalizacja */}
+            <div
+              id="editor-panel-location"
+              role="tabpanel"
+              aria-labelledby="editor-tab-location"
+              className="profile-tab-panel"
+              hidden={activeTab !== "location"}
+            >
+              <div className="sheet-line sheet-line-wrap">
+                <label className="sheet-label" htmlFor="field-share-location">
+                  Udostępnianie:
+                </label>
+                <div className="inline-entry-group">
+                  <label
+                    className="checkbox-label"
+                    style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}
+                  >
+                    <input
+                      type="checkbox"
+                      id="field-share-location"
+                      name="share_location"
+                      checked={shareLocation}
+                      onChange={(e) => setShareLocation(e.target.checked)}
+                    />
+                    <span>
+                      Udostępnij moją lokalizację na <strong>Mapie Chłopów</strong>
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="sheet-line sheet-line-wrap">
+                <label htmlFor="field-location-name" className="sheet-label">
+                  Miasto / Rejon:
+                </label>
+                <div
+                  className="inline-entry-group"
+                  style={{ display: "flex", gap: 8, flexWrap: "wrap", width: "100%" }}
+                >
+                  <input
+                    type="text"
+                    id="field-location-name"
+                    name="location_name"
+                    className="inline-input"
+                    placeholder="np. Warszawa, Kraków, Wrocław, Gdańsk..."
+                    maxLength={100}
+                    value={locationName}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setLocationName(val);
+                      const coords = findCityCoords(val);
+                      if (coords) {
+                        setLat(coords.lat);
+                        setLng(coords.lng);
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={isGettingGps}
+                    onClick={() => {
+                      if (!navigator.geolocation) {
+                        reportStatus("Twoja przeglądarka nie wspiera geolokalizacji GPS.", true);
+                        return;
+                      }
+                      setIsGettingGps(true);
+                      navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                          setIsGettingGps(false);
+                          setLat(pos.coords.latitude);
+                          setLng(pos.coords.longitude);
+                          setShareLocation(true);
+                          if (!locationName) {
+                            setLocationName("Moja lokalizacja GPS");
+                          }
+                          reportStatus("Pobrano współrzędne GPS ✓", false, "Pobrano GPS");
+                        },
+                        () => {
+                          setIsGettingGps(false);
+                          reportStatus("Nie udało się pobrać lokalizacji z GPS.", true);
+                        },
+                        { timeout: 8000 }
+                      );
+                    }}
+                  >
+                    {isGettingGps ? "Pobieranie..." : "📍 Pobierz z GPS"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="quick-suggestions-box">
+                <span className="suggestions-label">Popularne miasta:</span>
+                <div className="suggestions-chips">
+                  {POPULAR_CITIES.slice(0, 10).map((c) => (
+                    <button
+                      key={c.name}
+                      type="button"
+                      className={`skill-suggestion-chip ${
+                        locationName.toLowerCase() === c.name.toLowerCase() ? "is-active" : ""
+                      }`}
+                      onClick={() => {
+                        setLocationName(c.name);
+                        setLat(c.lat);
+                        setLng(c.lng);
+                        setShareLocation(true);
+                      }}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {lat != null && lng != null && (
+                <div
+                  className="location-coords-info"
+                  style={{ fontSize: "0.82rem", color: "#94a3b8", marginTop: 8 }}
+                >
+                  Współrzędne na mapie: {lat.toFixed(4)}° N, {lng.toFixed(4)}° E
+                </div>
+              )}
+            </div>
+
+            {/* Zakładka 3: Kontakt */}
             <div
               id="editor-panel-contact"
               role="tabpanel"

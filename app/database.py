@@ -192,6 +192,35 @@ def get_db():
         conn.close()
 
 
+PL_CITIES = [
+    ("Warszawa", 52.2297, 21.0122),
+    ("Kraków", 50.0647, 19.9450),
+    ("Wrocław", 51.1079, 17.0385),
+    ("Poznań", 52.4064, 16.9252),
+    ("Gdańsk", 54.3520, 18.6466),
+    ("Łódź", 51.7592, 19.4560),
+    ("Szczecin", 53.4285, 14.5528),
+    ("Lublin", 51.2465, 22.5684),
+    ("Białystok", 53.1325, 23.1688),
+    ("Katowice", 50.2649, 19.0238),
+    ("Gdynia", 54.5189, 18.5305),
+    ("Częstochowa", 50.8118, 19.1203),
+    ("Radom", 51.4027, 21.1471),
+    ("Toruń", 53.0138, 18.5984),
+    ("Rzeszów", 50.0412, 21.9991),
+    ("Kielce", 50.8661, 20.6286),
+    ("Gliwice", 50.2945, 18.6714),
+    ("Olsztyn", 53.7784, 20.4801),
+    ("Bielsko-Biała", 49.8224, 19.0469),
+    ("Zielona Góra", 51.9356, 15.5062),
+    ("Opole", 50.6751, 17.9213),
+    ("Gorzów Wielkopolski", 52.7368, 15.2288),
+    ("Płock", 52.5463, 19.7065),
+    ("Koszalin", 54.1944, 16.1722),
+    ("Kalisz", 51.7611, 18.0910),
+    ("Legnica", 51.2070, 16.1553),
+]
+
 SEED_PROFILES = [
     {
         "name": "Marek",
@@ -201,6 +230,10 @@ SEED_PROFILES = [
         "need_help": ["finanse", "sdlc", "realizacja pomysłów"],
         "contact": "marek@bronet.pl",
         "bio": "Tester oprogramowania od 6 lat. Chętnie pomogę wejść w IT lub pogadać o relacjach.",
+        "location_name": "Warszawa",
+        "lat": 52.2297,
+        "lng": 21.0122,
+        "share_location": 1,
     },
     {
         "name": "Kamil",
@@ -210,6 +243,10 @@ SEED_PROFILES = [
         "need_help": ["it", "strona www", "angielski"],
         "contact": "kamil@bronet.pl",
         "bio": "Ogarniam finanse osobiste i pomagam przekuwać luźne pomysły w konkretny plan.",
+        "location_name": "Kraków",
+        "lat": 50.0647,
+        "lng": 19.9450,
+        "share_location": 1,
     },
     {
         "name": "Tomek",
@@ -219,6 +256,10 @@ SEED_PROFILES = [
         "need_help": ["qa", "relacje męsko-damskie", "trening siłowy"],
         "contact": "tomek@bronet.pl",
         "bio": "Prowadzę zespoły produktowe. Pomogę uporządkować proces wytwarzania oprogramowania.",
+        "location_name": "Wrocław",
+        "lat": 51.1079,
+        "lng": 17.0385,
+        "share_location": 1,
     },
     {
         "name": "Michał",
@@ -228,6 +269,10 @@ SEED_PROFILES = [
         "need_help": ["finanse", "podatki b2b", "realizacja pomysłów"],
         "contact": "michal@bronet.pl",
         "bio": "Projektuję minimalistyczne interfejsy mobilne i webowe.",
+        "location_name": "Poznań",
+        "lat": 52.4064,
+        "lng": 16.9252,
+        "share_location": 1,
     },
     {
         "name": "Piotr",
@@ -237,6 +282,10 @@ SEED_PROFILES = [
         "need_help": ["ux/ui", "it", "qa"],
         "contact": "piotr@bronet.pl",
         "bio": "Pomogę z formalnościami na działalności i rozpisaniem prostego planu treningowego.",
+        "location_name": "Gdańsk",
+        "lat": 54.3520,
+        "lng": 18.6466,
+        "share_location": 1,
     },
 ]
 
@@ -276,7 +325,16 @@ def init_db(seed: bool = True) -> None:
             conn.execute("ALTER TABLE profiles ADD COLUMN email TEXT NOT NULL DEFAULT '';")
         if "password_hash" not in cols:
             conn.execute("ALTER TABLE profiles ADD COLUMN password_hash TEXT NOT NULL DEFAULT '';")
+        if "location_name" not in cols:
+            conn.execute("ALTER TABLE profiles ADD COLUMN location_name TEXT NOT NULL DEFAULT '';")
+        if "lat" not in cols:
+            conn.execute("ALTER TABLE profiles ADD COLUMN lat REAL;")
+        if "lng" not in cols:
+            conn.execute("ALTER TABLE profiles ADD COLUMN lng REAL;")
+        if "share_location" not in cols:
+            conn.execute("ALTER TABLE profiles ADD COLUMN share_location INTEGER NOT NULL DEFAULT 0;")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_share_location ON profiles(share_location);")
 
         # Usunięcie starych profili żeńskich, jeśli istnieją w trwałej bazie (men only)
         rows = conn.execute("SELECT id, name, email FROM profiles").fetchall()
@@ -320,6 +378,18 @@ def init_db(seed: bool = True) -> None:
                                     existing_emails.add(em)
                     except Exception as err:
                         print(f"Warning: Failed to load seed_profiles.json: {err}")
+
+        # Jeśli żaden profil nie ma jeszcze oznaczonej lokalizacji, przypisz przykładowe polskie miasta
+        loc_row = conn.execute("SELECT COUNT(*) AS cnt FROM profiles WHERE share_location = 1").fetchone()
+        if loc_row and loc_row["cnt"] == 0:
+            profiles_to_loc = conn.execute("SELECT id FROM profiles ORDER BY id ASC LIMIT 250").fetchall()
+            for r in profiles_to_loc:
+                city, lat, lng = PL_CITIES[r["id"] % len(PL_CITIES)]
+                conn.execute(
+                    "UPDATE profiles SET location_name = ?, lat = ?, lng = ?, share_location = 1 WHERE id = ?",
+                    (city, lat, lng, r["id"]),
+                )
+
         invalidate_profiles_cache()
 
 
@@ -340,10 +410,26 @@ def _insert_profile_in_tx(conn: sqlite3.Connection, data: Dict[str, Any]) -> int
     if not contact and email:
         contact = email
 
+    location_name = str(data.get("location_name") or "").strip()
+    raw_lat = data.get("lat")
+    raw_lng = data.get("lng")
+    try:
+        lat = float(raw_lat) if raw_lat is not None else None
+    except (ValueError, TypeError):
+        lat = None
+    try:
+        lng = float(raw_lng) if raw_lng is not None else None
+    except (ValueError, TypeError):
+        lng = None
+    share_location = 1 if (data.get("share_location") or (lat is not None and lng is not None)) else 0
+
     cur = conn.execute(
         """
-        INSERT INTO profiles (name, name_normalized, email, password_hash, contact, bio, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO profiles (
+            name, name_normalized, email, password_hash, contact, bio,
+            location_name, lat, lng, share_location, created_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             name,
@@ -352,6 +438,10 @@ def _insert_profile_in_tx(conn: sqlite3.Connection, data: Dict[str, Any]) -> int
             pwd_hash,
             contact,
             str(data.get("bio") or "").strip(),
+            location_name,
+            lat,
+            lng,
+            share_location,
             now,
             now,
         ),
@@ -416,6 +506,17 @@ def _hydrate_profiles(conn: sqlite3.Connection, profile_rows: List[sqlite3.Row])
         pid = r["id"]
         row_keys = r.keys()
         pwd_hash = r["password_hash"] if "password_hash" in row_keys else ""
+        raw_lat = r["lat"] if "lat" in row_keys else None
+        raw_lng = r["lng"] if "lng" in row_keys else None
+        try:
+            lat = float(raw_lat) if raw_lat is not None else None
+        except (ValueError, TypeError):
+            lat = None
+        try:
+            lng = float(raw_lng) if raw_lng is not None else None
+        except (ValueError, TypeError):
+            lng = None
+
         hydrated.append(
             {
                 "id": pid,
@@ -426,6 +527,10 @@ def _hydrate_profiles(conn: sqlite3.Connection, profile_rows: List[sqlite3.Row])
                 "need_help": by_profile[pid]["need_help"],
                 "contact": r["contact"],
                 "bio": r["bio"],
+                "location_name": r["location_name"] if "location_name" in row_keys and r["location_name"] else "",
+                "lat": lat,
+                "lng": lng,
+                "share_location": bool(r["share_location"]) if "share_location" in row_keys and r["share_location"] else False,
                 "created_at": r["created_at"],
                 "updated_at": r["updated_at"],
             }
@@ -613,10 +718,24 @@ def update_profile(profile_id: int, data: Dict[str, Any]) -> Optional[Dict[str, 
         if not contact and email:
             contact = email
 
+        location_name = str(data.get("location_name") or "").strip()
+        raw_lat = data.get("lat")
+        raw_lng = data.get("lng")
+        try:
+            lat = float(raw_lat) if raw_lat is not None else None
+        except (ValueError, TypeError):
+            lat = None
+        try:
+            lng = float(raw_lng) if raw_lng is not None else None
+        except (ValueError, TypeError):
+            lng = None
+        share_location = 1 if (data.get("share_location") or (lat is not None and lng is not None)) else 0
+
         conn.execute(
             """
             UPDATE profiles
-            SET name = ?, name_normalized = ?, email = ?, password_hash = ?, contact = ?, bio = ?, updated_at = ?
+            SET name = ?, name_normalized = ?, email = ?, password_hash = ?, contact = ?, bio = ?,
+                location_name = ?, lat = ?, lng = ?, share_location = ?, updated_at = ?
             WHERE id = ?
             """,
             (
@@ -626,6 +745,10 @@ def update_profile(profile_id: int, data: Dict[str, Any]) -> Optional[Dict[str, 
                 effective_hash,
                 contact,
                 str(data.get("bio") or "").strip(),
+                location_name,
+                lat,
+                lng,
+                share_location,
                 now,
                 profile_id,
             ),
