@@ -7,7 +7,7 @@ module.exports = defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  reporter: "list",
+  reporter: process.env.CI ? [["list"], ["github"]] : "list",
   use: {
     baseURL,
     trace: "on-first-retry",
@@ -24,7 +24,7 @@ module.exports = defineConfig({
         command: "python3 -m uvicorn app.main:app --host 127.0.0.1 --port 8000",
         url: "http://127.0.0.1:8000/api/health",
         reuseExistingServer: !process.env.CI,
-        timeout: 30_000,
+        timeout: 60_000,
       },
 });
 

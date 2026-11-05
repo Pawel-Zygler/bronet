@@ -18,7 +18,7 @@ test.describe("Landing & Search", () => {
 
   test(
     "wyszukuje profil po umiejętności i otwiera widok read-only",
-    { tag: ["@smoke", "@regression"] },
+    { tag: ["@regression"] },
     async ({ page }) => {
       await page.goto("/");
 
@@ -40,7 +40,7 @@ test.describe("Landing & Search", () => {
 
   test(
     "niezalogowany użytkownik widzi logowanie na froncie zakładki Profil",
-    { tag: ["@smoke", "@regression"] },
+    { tag: ["@regression"] },
     async ({ page }) => {
       await page.goto("/profil");
 

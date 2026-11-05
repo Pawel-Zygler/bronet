@@ -30,7 +30,14 @@ URL lokalny: http://127.0.0.1:8000
 | `npm run test:prod:smoke` | Testy `@smoke` na produkcji Railway |
 | `npm run test:prod:regression` | Pełna regresja `@regression` na produkcji Railway |
 
-## Deploy (Railway)
+## CI/CD (GitHub Actions)
+
+Workflow [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) uruchamia się przy pushu/PR na `main`:
+1. **Smoke Tests:** buduje aplikację i uruchamia testy `@smoke` w Playwright.
+2. **Deploy to Railway:** wykonuje się **tylko wtedy, gdy smoke testy zakończą się sukcesem**. W razie błędu deploy na prod jest blokowany.
+Wymagany secret w repo: `RAILWAY_TOKEN` (GitHub → Settings → Secrets and variables → Actions).
+
+## Deploy ręczny (Railway CLI)
 
 - **Projekt / Serwis / Env:** `bronet` (`b632c5a1-7c32-4a11-938b-9c178d971565`) / `6de612f9-9bab-463a-ac20-f128194ebeaa` / `production` (`d722d5f8-6334-4e02-add4-451db186e8ff`)
 - **Wolumen SQLite:** `/data/bronet.db` (`bronet-volume`: `c84570de-ded0-4c42-b5b6-c03f986ee517`)
