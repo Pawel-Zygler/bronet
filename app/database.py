@@ -379,6 +379,30 @@ def init_db(seed: bool = True) -> None:
                     except Exception as err:
                         print(f"Warning: Failed to load seed_profiles.json: {err}")
 
+            seed_it_json_path = BASE_DIR / "app" / "seed_it_profiles.json"
+            if seed_it_json_path.exists():
+                cnt_row = conn.execute("SELECT COUNT(*) AS cnt FROM profiles").fetchone()
+                if cnt_row and cnt_row["cnt"] < 3000:
+                    existing_emails = {
+                        r["email"]
+                        for r in conn.execute(
+                            "SELECT email FROM profiles WHERE email != ''"
+                        ).fetchall()
+                    }
+                    try:
+                        with open(seed_it_json_path, "r", encoding="utf-8") as f:
+                            it_profiles = json.load(f)
+                        with conn:
+                            for item in it_profiles:
+                                em = normalize_email(item.get("email"))
+                                if em and em in existing_emails:
+                                    continue
+                                _insert_profile_in_tx(conn, item)
+                                if em:
+                                    existing_emails.add(em)
+                    except Exception as err:
+                        print(f"Warning: Failed to load seed_it_profiles.json: {err}")
+
         # Jeśli żaden profil nie ma jeszcze oznaczonej lokalizacji, przypisz przykładowe polskie miasta
         loc_row = conn.execute("SELECT COUNT(*) AS cnt FROM profiles WHERE share_location = 1").fetchone()
         if loc_row and loc_row["cnt"] == 0:

@@ -704,3 +704,4 @@ export function MapView({ myProfile, profiles = [], matchesData = null, onOpenPr
     </section>
   );
 }
+
