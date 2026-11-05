@@ -328,7 +328,25 @@ button:focus-visible {
   border-radius: var(--radius);
   padding: 12px 40px 12px 42px;
   outline: none;
+  -webkit-appearance: none;
+  appearance: none;
   transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.search-input::-webkit-search-decoration,
+.search-input::-webkit-search-cancel-button,
+.search-input::-webkit-search-results-button,
+.search-input::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+.search-input::-ms-clear,
+.search-input::-ms-reveal {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .search-input::placeholder {
@@ -343,6 +361,9 @@ button:focus-visible {
 .search-clear {
   position: absolute;
   right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 28px;
   height: 28px;
   border: none;
