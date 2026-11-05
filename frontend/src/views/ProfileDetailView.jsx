@@ -76,7 +76,7 @@ export function ProfileDetailView({
     <section id="view-detail" className="view view-animate" aria-labelledby="detail-heading">
       <div className="detail-top">
         <a href="/" className="back-link" onClick={handleBack}>
-          ← Szukaj chłopa
+          ← Szukaj
         </a>
       </div>
 

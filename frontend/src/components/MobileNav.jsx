@@ -19,7 +19,7 @@ export function MobileNav({ activeNav, myProfile, onNavigate }) {
           <circle cx="11" cy="11" r="7" />
           <line x1="20" y1="20" x2="16.35" y2="16.35" />
         </svg>
-        <span>Szukaj chłopa</span>
+        <span>Szukaj</span>
       </a>
       <a
         href="/dopasowania"

@@ -40,7 +40,7 @@ test.describe("Profile lifecycle", () => {
         await expect(page.locator("#editor-feedback")).toContainText("Zapisano profil");
 
         // 3. Wyszukanie utworzonego profilu po adresie e-mail
-        await page.locator(".desktop-nav").getByRole("link", { name: "Szukaj chłopa" }).click();
+        await page.locator(".desktop-nav").getByRole("link", { name: "Szukaj", exact: true }).click();
         const searchInput = page.locator("#search-input");
         await expect(searchInput).toBeVisible();
         await searchInput.fill(testEmail);
@@ -69,7 +69,7 @@ test.describe("Profile lifecycle", () => {
         createdProfileId = null;
 
         // 6. Ponowne wyszukanie usuniętego profilu — potwierdzenie braku w wyszukiwarce
-        await page.locator(".desktop-nav").getByRole("link", { name: "Szukaj chłopa" }).click();
+        await page.locator(".desktop-nav").getByRole("link", { name: "Szukaj", exact: true }).click();
         await page.locator("#search-input").fill("");
         await page.locator("#search-input").fill(testEmail);
         await expect(page.locator(".empty-state")).toContainText(

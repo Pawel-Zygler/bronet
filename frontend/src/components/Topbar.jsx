@@ -68,7 +68,7 @@ export function Topbar({
                 className={`nav-link ${activeNav === "home" ? "is-active" : ""}`}
                 onClick={(e) => handleLink(e, "/")}
               >
-                Szukaj chłopa
+                Szukaj
               </a>
               <a
                 href="/dopasowania"

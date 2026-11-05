@@ -82,7 +82,7 @@ test.describe("Landing & Search", () => {
 
   test(
     "potwierdza brak profili żeńskich 'kasia' i 'basia' w wyszukiwarce (men only)",
-    { tag: ["@smoke", "@regression"] },
+    { tag: ["@regression"] },
     async ({ page }) => {
       await page.goto("/");
 
@@ -260,7 +260,9 @@ test.describe("Landing & Search", () => {
 
   test(
     "dopasowania: weryfikuje dopasowanie 1:1 (wzajemna pomoc) oraz relację 'Możesz pomóc' po utworzeniu profili",
-    { tag: ["@smoke", "@regression"] },
+    {
+      tag: ["@smoke", "@regression"]
+    },
     async ({ page, request }) => {
       const uid = `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
       const skillMutualA = `spawacz_${uid}`;
@@ -385,7 +387,7 @@ test.describe("Landing & Search", () => {
 
   test(
     "weryfikuje responsywność na ekranie mobilnym (brak poziomego scrolla, brak compact toggle w profilu, widoczny przycisk zapisu)",
-    { tag: ["@smoke", "@regression"] },
+    { tag: ["@regression"] },
     async ({ page }) => {
       // Ustawienie wąskiego viewportu mobilnego (np. 360x780 typowy Android / Pixel)
       await page.setViewportSize({ width: 360, height: 780 });
