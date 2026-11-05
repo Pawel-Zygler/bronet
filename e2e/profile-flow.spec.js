@@ -64,6 +64,14 @@ test.describe("Profile lifecycle", () => {
         await expect(page.locator("#login-form")).toBeVisible();
         await expect(page.locator("#login-feedback")).toContainText("Profil został usunięty");
         createdProfileId = null;
+
+        // 6. Ponowne wyszukanie usuniętego profilu — potwierdzenie braku w wyszukiwarce
+        await page.locator(".desktop-nav").getByRole("link", { name: "Szukaj chłopa" }).click();
+        await page.locator("#search-input").fill(testEmail);
+        await expect(page.locator(".empty-state")).toContainText(
+          `Brak profili pasujących do wyszukiwania „${testEmail}”`
+        );
+        await expect(page.locator(".profile-card")).toHaveCount(0);
       } finally {
         if (createdProfileId) {
           await request.delete(`/api/profiles/${createdProfileId}`, {
