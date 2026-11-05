@@ -3,6 +3,7 @@ import { apiGet } from "./api";
 import { MobileNav } from "./components/MobileNav";
 import { Topbar } from "./components/Topbar";
 import { HomeView } from "./views/HomeView";
+import { MatchingView } from "./views/MatchingView";
 import { ProfileDetailView } from "./views/ProfileDetailView";
 import { ProfileEditorView } from "./views/ProfileEditorView";
 
@@ -26,6 +27,9 @@ function loadStoredProfile() {
 function parseRoute(pathname) {
   if (pathname === "/profil") {
     return { view: "editor", nav: "profile", profileId: null };
+  }
+  if (pathname === "/dopasowania") {
+    return { view: "matches", nav: "matches", profileId: null };
   }
   const match = pathname.match(/^\/profil\/(\d+)$/);
   if (match) {
@@ -329,6 +333,16 @@ export function App() {
             onSearchChange={handleSearchChange}
             onSearchSubmit={handleSearchSubmit}
             onOpenProfile={handleOpenProfile}
+          />
+        )}
+
+        {route.view === "matches" && (
+          <MatchingView
+            myProfile={myProfile}
+            isCompactView={isCompactView}
+            onOpenProfile={handleOpenProfile}
+            onNavigate={navigate}
+            profiles={profiles}
           />
         )}
 

@@ -69,6 +69,14 @@ export function Topbar({
                 Szukaj chłopa
               </a>
               <a
+                href="/dopasowania"
+                aria-current={activeNav === "matches" ? "page" : undefined}
+                className={`nav-link ${activeNav === "matches" ? "is-active" : ""}`}
+                onClick={(e) => handleLink(e, "/dopasowania")}
+              >
+                Dopasowania
+              </a>
+              <a
                 href="/profil"
                 aria-current={activeNav === "profile" ? "page" : undefined}
                 className={`nav-link ${activeNav === "profile" ? "is-active" : ""}`}

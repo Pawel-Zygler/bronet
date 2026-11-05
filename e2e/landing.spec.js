@@ -213,4 +213,44 @@ test.describe("Landing & Search", () => {
       await expect(page.locator(".profile-card").first()).toBeVisible();
     }
   );
+
+  test(
+    "otwiera zakładkę 'Dopasowania' (chłop help auto-matching), przełącza kategorie i tryb kompaktowy",
+    { tag: ["@smoke", "@regression"] },
+    async ({ page }) => {
+      await page.goto("/");
+
+      // 1. Przejście do zakładki Dopasowania z menu
+      await page.locator(".desktop-nav").getByRole("link", { name: "Dopasowania" }).click();
+      await expect(page).toHaveURL("/dopasowania");
+      await expect(page.locator("#matching-heading")).toHaveText("Chłop Help Auto-Matching");
+
+      // 2. Weryfikacja przycisków kategorii (Wzajemna pomoc 1:1, Mogą pomóc, Możesz pomóc)
+      const tabMutual = page.locator("#tab-mutual");
+      const tabTheyHelp = page.locator("#tab-they-help");
+      const tabIHelp = page.locator("#tab-i-help");
+
+      await expect(tabMutual).toBeVisible();
+      await expect(tabTheyHelp).toBeVisible();
+      await expect(tabIHelp).toBeVisible();
+      await expect(tabMutual).toHaveAttribute("aria-selected", "true");
+
+      // 3. Sprawdzenie selektora demo profilu dla niezalogowanego użytkownika
+      const demoSelect = page.locator("#demo-profile-select");
+      await expect(demoSelect).toBeVisible();
+
+      // Przełączenie kategorii na 'Mogą pomóc'
+      await tabTheyHelp.click();
+      await expect(tabTheyHelp).toHaveAttribute("aria-selected", "true");
+
+      // 4. Przełączenie na widok kompaktowy
+      const compactBtn = page.locator("#compact-view-toggle");
+      await compactBtn.click();
+      await expect(compactBtn).toHaveAttribute("aria-pressed", "true");
+
+      // Przełączenie z powrotem na standardowy
+      await compactBtn.click();
+      await expect(compactBtn).toHaveAttribute("aria-pressed", "false");
+    }
+  );
 });

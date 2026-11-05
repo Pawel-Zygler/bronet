@@ -662,16 +662,22 @@ def get_skills_catalog() -> Dict[str, Any]:
 
 
 def _skills_overlap(source_skills: List[str], target_skills: List[str]) -> List[str]:
-    target_norms = {normalize_text(t): t for t in target_skills}
+    target_norms = {normalize_text(t) for t in target_skills if normalize_text(t)}
     matched: List[str] = []
     seen = set()
     for src in source_skills:
         s_norm = normalize_text(src)
-        if not s_norm:
+        if not s_norm or s_norm in seen:
             continue
-        if s_norm in target_norms and s_norm not in seen:
+        if s_norm in target_norms:
             seen.add(s_norm)
             matched.append(src)
+            continue
+        for t_norm in target_norms:
+            if len(s_norm) >= 4 and len(t_norm) >= 4 and (s_norm in t_norm or t_norm in s_norm):
+                seen.add(s_norm)
+                matched.append(src)
+                break
     return matched
 
 
