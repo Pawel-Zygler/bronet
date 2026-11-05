@@ -117,12 +117,12 @@ SEED_PROFILES = [
         "bio": "Tester oprogramowania od 6 lat. Chętnie pomogę wejść w IT lub pogadać o relacjach.",
     },
     {
-        "name": "Kasia",
-        "email": "kasia@bronet.pl",
+        "name": "Kamil",
+        "email": "kamil@bronet.pl",
         "password": "bronet",
         "can_help": ["finanse", "budżet osobisty", "excel", "realizacja pomysłów"],
         "need_help": ["it", "strona www", "angielski"],
-        "contact": "kasia@bronet.pl",
+        "contact": "kamil@bronet.pl",
         "bio": "Ogarniam finanse osobiste i pomagam przekuwać luźne pomysły w konkretny plan.",
     },
     {
@@ -135,12 +135,12 @@ SEED_PROFILES = [
         "bio": "Prowadzę zespoły produktowe. Pomogę uporządkować proces wytwarzania oprogramowania.",
     },
     {
-        "name": "Ania",
-        "email": "ania@bronet.pl",
+        "name": "Michał",
+        "email": "michal@bronet.pl",
         "password": "bronet",
         "can_help": ["ux/ui", "figma", "angielski", "komunikacja"],
         "need_help": ["finanse", "podatki b2b", "realizacja pomysłów"],
-        "contact": "ania@bronet.pl",
+        "contact": "michal@bronet.pl",
         "bio": "Projektuję minimalistyczne interfejsy mobilne i webowe.",
     },
     {
@@ -192,12 +192,18 @@ def init_db(seed: bool = True) -> None:
             conn.execute("ALTER TABLE profiles ADD COLUMN password_hash TEXT NOT NULL DEFAULT '';")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);")
 
+        # Usunięcie starych profili żeńskich, jeśli istnieją w trwałej bazie (men only)
+        conn.execute(
+            "DELETE FROM profiles WHERE email IN ('kasia@bronet.pl', 'ania@bronet.pl') OR name IN ('Kasia', 'Ania');"
+        )
+
         if seed:
             row = conn.execute("SELECT COUNT(*) AS cnt FROM profiles").fetchone()
             current_count = row["cnt"] if row else 0
             if current_count == 0:
-                for item in SEED_PROFILES:
-                    _insert_profile_in_tx(conn, item)
+                with conn:
+                    for item in SEED_PROFILES:
+                        _insert_profile_in_tx(conn, item)
 
             seed_json_path = BASE_DIR / "app" / "seed_profiles.json"
             if seed_json_path.exists():
@@ -212,13 +218,14 @@ def init_db(seed: bool = True) -> None:
                     try:
                         with open(seed_json_path, "r", encoding="utf-8") as f:
                             extra_profiles = json.load(f)
-                        for item in extra_profiles:
-                            em = normalize_email(item.get("email"))
-                            if em and em in existing_emails:
-                                continue
-                            _insert_profile_in_tx(conn, item)
-                            if em:
-                                existing_emails.add(em)
+                        with conn:
+                            for item in extra_profiles:
+                                em = normalize_email(item.get("email"))
+                                if em and em in existing_emails:
+                                    continue
+                                _insert_profile_in_tx(conn, item)
+                                if em:
+                                    existing_emails.add(em)
                     except Exception as err:
                         print(f"Warning: Failed to load seed_profiles.json: {err}")
 
