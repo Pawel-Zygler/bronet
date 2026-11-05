@@ -7,6 +7,20 @@ import { ProfileDetailView } from "./views/ProfileDetailView";
 import { ProfileEditorView } from "./views/ProfileEditorView";
 
 const STORAGE_KEY_MY_PROFILE = "bronet_my_profile_id";
+const STORAGE_KEY_MY_PROFILE_CACHE = "bronet_my_profile_cache";
+
+function loadStoredProfile() {
+  try {
+    const savedId = Number(localStorage.getItem(STORAGE_KEY_MY_PROFILE)) || null;
+    if (!savedId) return null;
+    const raw = localStorage.getItem(STORAGE_KEY_MY_PROFILE_CACHE);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && parsed.id === savedId ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
 
 function parseRoute(pathname) {
   if (pathname === "/profil") {
@@ -23,9 +37,11 @@ export function App() {
   const [pathname, setPathname] = useState(() => window.location.pathname);
   const route = parseRoute(pathname);
 
-  const [myProfile, setMyProfileState] = useState(null);
+  const [myProfile, setMyProfileState] = useState(() => loadStoredProfile());
   const [profileSyncVersion, setProfileSyncVersion] = useState(0);
-  const [editorInitialTab, setEditorInitialTab] = useState("skills");
+  const [editorInitialTab, setEditorInitialTab] = useState(() =>
+    loadStoredProfile() ? "skills" : "auth"
+  );
   const [sessionPasswords, setSessionPasswords] = useState({});
 
   const [skillsCatalog, setSkillsCatalog] = useState({
@@ -43,18 +59,28 @@ export function App() {
   const [searchRefreshTick, setSearchRefreshTick] = useState(0);
 
   // Mobile sticky save bar state
+  const [showMobileSave, setShowMobileSave] = useState(Boolean(myProfile));
   const [isSaving, setIsSaving] = useState(false);
   const [mobileHint, setMobileHint] = useState("");
   const [mobileHintError, setMobileHintError] = useState(false);
   const mobileHintTimerRef = useRef(null);
 
+  const myProfileRef = useRef(myProfile);
+  myProfileRef.current = myProfile;
+
   const setMyProfile = useCallback((profile, syncEditor = true) => {
     if (profile && profile.id) {
       localStorage.setItem(STORAGE_KEY_MY_PROFILE, String(profile.id));
+      try {
+        localStorage.setItem(STORAGE_KEY_MY_PROFILE_CACHE, JSON.stringify(profile));
+      } catch (_) {
+        // ignore quota errors
+      }
       setMyProfileState(profile);
       setProfilesCache((prev) => ({ ...prev, [profile.id]: profile }));
     } else {
       localStorage.removeItem(STORAGE_KEY_MY_PROFILE);
+      localStorage.removeItem(STORAGE_KEY_MY_PROFILE_CACHE);
       setMyProfileState(null);
     }
     if (syncEditor) {
@@ -83,7 +109,7 @@ export function App() {
       window.history.pushState({}, "", nextPath);
     }
     if (nextPath === "/profil") {
-      setEditorInitialTab("skills");
+      setEditorInitialTab(myProfileRef.current ? "skills" : "auth");
       setMobileHint("");
       setMobileHintError(false);
     }
@@ -95,8 +121,12 @@ export function App() {
 
   useEffect(() => {
     const onPopState = () => {
+      const next = window.location.pathname;
+      if (next === "/profil") {
+        setEditorInitialTab(myProfileRef.current ? "skills" : "auth");
+      }
       startTransition(() => {
-        setPathname(window.location.pathname);
+        setPathname(next);
       });
     };
     window.addEventListener("popstate", onPopState);
@@ -114,9 +144,11 @@ export function App() {
     if (savedId) {
       apiGet(`/api/profiles/${savedId}`)
         .then((p) => {
+          setEditorInitialTab("skills");
           setMyProfile(p, true);
         })
         .catch(() => {
+          setEditorInitialTab("auth");
           setMyProfile(null, true);
         });
     }
@@ -194,6 +226,7 @@ export function App() {
 
   const handleProfileSaved = useCallback(
     async (saved) => {
+      setEditorInitialTab("skills");
       setMyProfile(saved, false);
       setSearchRefreshTick((t) => t + 1);
       try {
@@ -240,6 +273,7 @@ export function App() {
         onNavigate={navigate}
         onLogout={handleLogout}
         isEditorView={route.view === "editor"}
+        showMobileSave={showMobileSave}
         isSaving={isSaving}
         mobileHint={mobileHint}
         mobileHintError={mobileHintError}
@@ -273,6 +307,7 @@ export function App() {
             onLogout={handleLogout}
             onStatusChange={handleStatusChange}
             onSavingChange={setIsSaving}
+            onShowMobileSaveChange={setShowMobileSave}
           />
         )}
 
@@ -291,4 +326,3 @@ export function App() {
     </>
   );
 }
-

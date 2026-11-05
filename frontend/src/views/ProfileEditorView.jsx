@@ -17,10 +17,14 @@ export function ProfileEditorView({
   onLogout,
   onStatusChange,
   onSavingChange,
+  onShowMobileSaveChange,
 }) {
-  const [activeTab, setActiveTab] = useState(initialTab || "skills");
-
   const [editingId, setEditingId] = useState(myProfile ? myProfile.id : null);
+  const isLoggedIn = Boolean(myProfile || editingId);
+
+  const [activeTab, setActiveTab] = useState(
+    initialTab || (isLoggedIn ? "skills" : "auth")
+  );
   const [hasPassword, setHasPassword] = useState(Boolean(myProfile?.has_password));
 
   const [name, setName] = useState(myProfile?.name || "");
@@ -40,6 +44,7 @@ export function ProfileEditorView({
   const [needHelpInput, setNeedHelpInput] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [feedback, setFeedback] = useState({ message: "", isError: false });
 
   const nameInputRef = useRef(null);
@@ -67,6 +72,7 @@ export function ProfileEditorView({
       setNeedHelpList(myProfile.need_help || []);
       setCanHelpInput("");
       setNeedHelpInput("");
+      setActiveTab("skills");
     } else {
       setEditingId(null);
       setHasPassword(false);
@@ -80,6 +86,7 @@ export function ProfileEditorView({
       setNeedHelpList([]);
       setCanHelpInput("");
       setNeedHelpInput("");
+      setActiveTab("auth");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileSyncVersion]);
@@ -88,7 +95,29 @@ export function ProfileEditorView({
     if (initialTab) {
       setActiveTab(initialTab);
     }
-  }, [initialTab, profileSyncVersion]);
+  }, [initialTab]);
+
+  // Show Save actions whenever logged in, on another tab (filling profile), or name is started
+  const isPureLoginFront = !isLoggedIn && activeTab === "auth" && !name.trim();
+  useEffect(() => {
+    if (onShowMobileSaveChange) {
+      onShowMobileSaveChange(!isPureLoginFront);
+    }
+  }, [isPureLoginFront, onShowMobileSaveChange]);
+
+  const tabs = isLoggedIn
+    ? [
+        { key: "skills", label: "Umiejętności" },
+        { key: "contact", label: "Kontakt" },
+        { key: "bio", label: "O mnie" },
+        { key: "auth", label: "Dane logowania" },
+      ]
+    : [
+        { key: "auth", label: "Logowanie" },
+        { key: "skills", label: "Umiejętności" },
+        { key: "contact", label: "Kontakt" },
+        { key: "bio", label: "O mnie" },
+      ];
 
   const { availableCanSuggestions, availableNeedSuggestions } = useMemo(() => {
     const dbSkills = (skillsCatalog.all || []).map((x) => x.skill);
@@ -157,6 +186,7 @@ export function ProfileEditorView({
       emailInputRef.current?.focus();
       return;
     }
+    setIsLoggingIn(true);
     try {
       const found = await apiSend("/api/profiles/login", "POST", {
         email: cleanEmail,
@@ -174,6 +204,15 @@ export function ProfileEditorView({
       if (msg.toLowerCase().includes("hasł")) {
         passwordInputRef.current?.focus();
       }
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleAuthKeyDown = (e) => {
+    if (e.key === "Enter" && isPureLoginFront) {
+      e.preventDefault();
+      handleLoginLoad();
     }
   };
 
@@ -185,6 +224,10 @@ export function ProfileEditorView({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isPureLoginFront) {
+      handleLoginLoad();
+      return;
+    }
     reportStatus("", false);
 
     let nextCan = canHelpList;
@@ -210,7 +253,12 @@ export function ProfileEditorView({
 
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes("@")) {
-      reportStatus("Podaj adres e-mail w zakładce Dane logowania.", true);
+      reportStatus(
+        isLoggedIn
+          ? "Podaj adres e-mail w zakładce Dane logowania."
+          : "Podaj adres e-mail w zakładce Logowanie.",
+        true
+      );
       focusTabField("auth", emailInputRef);
       return;
     }
@@ -235,6 +283,7 @@ export function ProfileEditorView({
     setIsSubmitting(true);
     onSavingChange(true);
     try {
+      const wasCreating = !editingId;
       const saved = editingId
         ? await apiSend(`/api/profiles/${editingId}`, "PUT", payload)
         : await apiSend("/api/profiles", "POST", payload);
@@ -247,6 +296,9 @@ export function ProfileEditorView({
       setNewPassword("");
       setEditingId(saved.id);
       setHasPassword(Boolean(saved.has_password));
+      if (wasCreating) {
+        setActiveTab("skills");
+      }
 
       await onProfileSaved(saved);
 
@@ -272,8 +324,6 @@ export function ProfileEditorView({
     }
   };
 
-  const isLoggedIn = Boolean(myProfile || editingId);
-
   return (
     <section id="view-editor" className="view view-animate">
       <div className="editor-header-row">
@@ -288,12 +338,7 @@ export function ProfileEditorView({
       </div>
 
       <div className="profile-tabs" role="tablist" aria-label="Sekcje profilu">
-        {[
-          { key: "skills", label: "Umiejętności" },
-          { key: "contact", label: "Kontakt" },
-          { key: "bio", label: "O mnie" },
-          { key: "auth", label: "Dane logowania" },
-        ].map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={tab.key}
             type="button"
@@ -308,7 +353,7 @@ export function ProfileEditorView({
       </div>
 
       <form id="profile-form" className="profile-sheet" noValidate onSubmit={handleSubmit}>
-        {/* Zakładka 1: Umiejętności */}
+        {/* Zakładka: Umiejętności (na froncie gdy zalogowany) */}
         <div className="profile-tab-panel" hidden={activeTab !== "skills"}>
           <div className="sheet-line">
             <label htmlFor="field-name" className="sheet-label">
@@ -468,7 +513,7 @@ export function ProfileEditorView({
           </div>
         </div>
 
-        {/* Zakładka 2: Kontakt */}
+        {/* Zakładka: Kontakt */}
         <div className="profile-tab-panel" hidden={activeTab !== "contact"}>
           <div className="sheet-line">
             <label htmlFor="field-contact" className="sheet-label">
@@ -487,7 +532,7 @@ export function ProfileEditorView({
           </div>
         </div>
 
-        {/* Zakładka 3: O mnie */}
+        {/* Zakładka: O mnie */}
         <div className="profile-tab-panel" hidden={activeTab !== "bio"}>
           <div className="sheet-block">
             <label htmlFor="field-bio" className="sheet-label">
@@ -506,7 +551,7 @@ export function ProfileEditorView({
           </div>
         </div>
 
-        {/* Zakładka 4: Dane logowania */}
+        {/* Zakładka: Logowanie (na froncie gdy niezalogowany) / Dane logowania (na końcu gdy zalogowany) */}
         <div className="profile-tab-panel" hidden={activeTab !== "auth"}>
           <div className="sheet-line sheet-line-wrap">
             <label htmlFor="field-email" className="sheet-label">
@@ -520,25 +565,33 @@ export function ProfileEditorView({
                 name="email"
                 inputMode="email"
                 className="inline-input"
-                placeholder="twój@email.pl (do zapisu i logowania profilu)"
+                placeholder={
+                  isLoggedIn
+                    ? "twój@email.pl"
+                    : "wpisz e-mail swojego profilu"
+                }
                 maxLength={160}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={handleAuthKeyDown}
               />
-              <button
-                type="button"
-                className="inline-add-btn"
-                title="Masz już profil na ten e-mail? Wczytaj go"
-                onClick={handleLoginLoad}
-              >
-                Zaloguj / Wczytaj
-              </button>
+              {!isLoggedIn && !isPureLoginFront && (
+                <button
+                  type="button"
+                  className="inline-add-btn"
+                  title="Masz już profil na ten e-mail? Zaloguj się"
+                  onClick={handleLoginLoad}
+                  disabled={isLoggingIn}
+                >
+                  Zaloguj
+                </button>
+              )}
             </div>
           </div>
 
           <div className="sheet-line sheet-line-wrap">
             <label htmlFor="field-password" className="sheet-label">
-              {!editingId ? (
+              {!isLoggedIn ? (
                 <>
                   Hasło <span className="label-sub">(opcjonalnie):</span>
                 </>
@@ -558,8 +611,8 @@ export function ProfileEditorView({
                 name="password"
                 className="inline-input"
                 placeholder={
-                  !editingId
-                    ? "dowolne hasło bez specjalnych wymagań"
+                  !isLoggedIn
+                    ? "wpisz hasło (jeśli profil je ma) lub ustaw nowe"
                     : hasPassword
                     ? "podaj hasło profilu, aby zapisać zmiany"
                     : "wpisz dowolne hasło, aby zabezpieczyć profil"
@@ -568,6 +621,7 @@ export function ProfileEditorView({
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={handleAuthKeyDown}
               />
               <button
                 type="button"
@@ -579,7 +633,7 @@ export function ProfileEditorView({
             </div>
           </div>
 
-          {editingId && hasPassword && (
+          {isLoggedIn && hasPassword && (
             <div className="sheet-line sheet-line-wrap">
               <label htmlFor="field-new-password" className="sheet-label">
                 Nowe hasło <span className="label-sub">(opcjonalnie):</span>
@@ -600,6 +654,33 @@ export function ProfileEditorView({
             </div>
           )}
 
+          {isPureLoginFront && (
+            <div className="form-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleLoginLoad}
+                disabled={isLoggingIn}
+              >
+                {isLoggingIn ? "Logowanie..." : "Zaloguj"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => focusTabField("skills", nameInputRef)}
+              >
+                Stwórz nowy profil →
+              </button>
+              <span
+                className={`save-feedback ${feedback.isError ? "is-error" : ""}`}
+                role="status"
+                aria-live="polite"
+              >
+                {feedback.message}
+              </span>
+            </div>
+          )}
+
           {isLoggedIn && (
             <div className="auth-logout-row">
               <button type="button" className="btn btn-ghost" onClick={handleLogoutClick}>
@@ -609,20 +690,21 @@ export function ProfileEditorView({
           )}
         </div>
 
-        <div className="form-actions">
-          <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-            {editingId ? "Zapisz zmiany w profilu" : "Zapisz profil"}
-          </button>
-          <span
-            className={`save-feedback ${feedback.isError ? "is-error" : ""}`}
-            role="status"
-            aria-live="polite"
-          >
-            {feedback.message}
-          </span>
-        </div>
+        {!isPureLoginFront && (
+          <div className="form-actions">
+            <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+              {editingId ? "Zapisz zmiany w profilu" : "Zapisz profil"}
+            </button>
+            <span
+              className={`save-feedback ${feedback.isError ? "is-error" : ""}`}
+              role="status"
+              aria-live="polite"
+            >
+              {feedback.message}
+            </span>
+          </div>
+        )}
       </form>
     </section>
   );
 }
-

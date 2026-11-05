@@ -6,6 +6,7 @@ export function Topbar({
   onNavigate,
   onLogout,
   isEditorView,
+  showMobileSave,
   isSaving,
   mobileHint,
   mobileHintError,
@@ -44,7 +45,7 @@ export function Topbar({
           )}
         </nav>
 
-        {isEditorView && (
+        {isEditorView && (showMobileSave || mobileHint) && (
           <div className="mobile-top-actions">
             <span
               className={`mobile-save-hint ${mobileHintError ? "is-error" : ""}`}
@@ -53,18 +54,19 @@ export function Topbar({
             >
               {mobileHint}
             </span>
-            <button
-              type="submit"
-              form="profile-form"
-              className="btn btn-primary mobile-top-save-btn"
-              disabled={isSaving}
-            >
-              Zapisz
-            </button>
+            {showMobileSave && (
+              <button
+                type="submit"
+                form="profile-form"
+                className="btn btn-primary mobile-top-save-btn"
+                disabled={isSaving}
+              >
+                Zapisz
+              </button>
+            )}
           </div>
         )}
       </div>
     </header>
   );
 }
-
