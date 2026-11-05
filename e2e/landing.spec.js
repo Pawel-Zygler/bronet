@@ -139,4 +139,78 @@ test.describe("Landing & Search", () => {
       await expect(paginationBar).toBeVisible();
     }
   );
+
+  test(
+    "wyszukiwarka: testuje wpisywanie frazy, filtry zakresu (Umiem / Potrzebuję), chipy popularne oraz spójność w widoku zwykłym i kompaktowym",
+    { tag: ["@smoke", "@regression"] },
+    async ({ page }) => {
+      await page.goto("/");
+
+      const searchInput = page.locator("#search-input");
+      const filterAll = page.getByRole("button", { name: "Wszystkie", exact: true });
+      const filterCan = page.getByRole("button", { name: "Umiem (kto pomoże)", exact: true });
+      const filterNeed = page.getByRole("button", { name: "Potrzebuję (kto szuka)", exact: true });
+      const compactBtn = page.locator("#compact-view-toggle");
+
+      // 1. Wyszukiwanie frazy w widoku standardowym
+      await searchInput.fill("hydraulik");
+      await expect(page.locator(".active-filter-hint")).toContainText("hydraulik");
+      await expect(page.locator(".profile-card").first()).toBeVisible();
+      await expect(page.locator(".search-clear")).toBeVisible();
+
+      // 2. Filtry zakresu (Umiem vs Potrzebuję)
+      await filterCan.click();
+      await expect(filterCan).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator(".active-filter-hint")).toContainText("w sekcji „Umiem”");
+      await expect(page.locator(".profile-card").first()).toBeVisible();
+
+      await filterNeed.click();
+      await expect(filterNeed).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator(".active-filter-hint")).toContainText("w sekcji „Potrzebuję”");
+
+      await filterAll.click();
+      await expect(filterAll).toHaveAttribute("aria-pressed", "true");
+
+      // 3. Przełączenie na widok kompaktowy z zachowaniem filtrów i wyników
+      await compactBtn.click();
+      await expect(compactBtn).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator(".compact-profiles-list")).toBeVisible();
+      const firstCompactItem = page.locator(".compact-profile-item").first();
+      await expect(firstCompactItem).toBeVisible();
+      await expect(firstCompactItem.locator(".compact-profile-name")).toBeVisible();
+      await expect(firstCompactItem.locator(".compact-action-btn")).toHaveCount(2); // email + profil
+
+      // Filtr zakresu w widoku kompaktowym
+      await filterCan.click();
+      await expect(filterCan).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator(".compact-profiles-list")).toBeVisible();
+
+      // 4. Czyszczenie wyszukiwania za pomocą przycisku ×
+      await page.locator(".search-clear").click();
+      await expect(searchInput).toHaveValue("");
+      await expect(page.locator(".search-clear")).toHaveCount(0);
+
+      // 5. Popularne umiejętności (chipy)
+      const firstPopularChip = page.locator(".skill-filter-chip").first();
+      await expect(firstPopularChip).toBeVisible();
+      const chipText = (await firstPopularChip.textContent()).trim();
+      await firstPopularChip.click();
+
+      await expect(searchInput).toHaveValue(chipText);
+      await expect(firstPopularChip).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator(".compact-profiles-list")).toBeVisible();
+
+      // Toggle chipa z powrotem
+      await firstPopularChip.click();
+      await expect(searchInput).toHaveValue("");
+      await expect(firstPopularChip).toHaveAttribute("aria-pressed", "false");
+
+      // 6. Przełączenie z powrotem na widok zwykły
+      await compactBtn.click();
+      await expect(compactBtn).toHaveAttribute("aria-pressed", "false");
+      await expect(page.locator(".compact-profiles-list")).toHaveCount(0);
+      await expect(page.locator(".profiles-list")).toBeVisible();
+      await expect(page.locator(".profile-card").first()).toBeVisible();
+    }
+  );
 });
