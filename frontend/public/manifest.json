@@ -1,0 +1,10 @@
+{
+  "name": "Bronet — Jeden chłop pomaga drugiemu",
+  "short_name": "Bronet",
+  "description": "Minimalistyczna strona, gdzie jeden chłop pomaga drugiemu.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff"
+}
+

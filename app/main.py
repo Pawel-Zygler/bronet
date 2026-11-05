@@ -20,11 +20,12 @@ from app.models import LoginPayload, ProfilePayload, ProfileResponse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = BASE_DIR / "static"
+STATIC_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(
     title="Bronet API",
     description="Minimalistyczna platforma wymiany umiejętności — jeden chłop pomaga drugiemu.",
-    version="1.2.1",
+    version="2.0.0",
 )
 
 
@@ -32,7 +33,9 @@ app = FastAPI(
 async def revalidate_static_and_spa(request: Request, call_next):
     response = await call_next(request)
     path = request.url.path
-    if path == "/" or path.startswith("/profil") or path.startswith("/static/"):
+    if path.startswith("/static/assets/"):
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    elif path == "/" or path.startswith("/profil") or path.startswith("/static/"):
         response.headers["Cache-Control"] = "no-cache, must-revalidate"
     return response
 

@@ -11,4 +11,7 @@ venv
 tests
 README.md
 .DS_Store
+frontend/node_modules
+node_modules
+static
 

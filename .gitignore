@@ -12,4 +12,6 @@ ENV/
 .idea/
 .vscode/
 *.log
+frontend/node_modules/
+node_modules/
 
