@@ -39,9 +39,6 @@ export function App() {
 
   const [myProfile, setMyProfileState] = useState(() => loadStoredProfile());
   const [profileSyncVersion, setProfileSyncVersion] = useState(0);
-  const [editorInitialTab, setEditorInitialTab] = useState(() =>
-    loadStoredProfile() ? "skills" : "auth"
-  );
   const [sessionPasswords, setSessionPasswords] = useState({});
 
   const [skillsCatalog, setSkillsCatalog] = useState({
@@ -57,6 +54,7 @@ export function App() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [searchRefreshTick, setSearchRefreshTick] = useState(0);
+  const [immediateSearchTick, setImmediateSearchTick] = useState(0);
 
   // Mobile sticky save bar state
   const [showMobileSave, setShowMobileSave] = useState(Boolean(myProfile));
@@ -64,9 +62,6 @@ export function App() {
   const [mobileHint, setMobileHint] = useState("");
   const [mobileHintError, setMobileHintError] = useState(false);
   const mobileHintTimerRef = useRef(null);
-
-  const myProfileRef = useRef(myProfile);
-  myProfileRef.current = myProfile;
 
   const setMyProfile = useCallback((profile, syncEditor = true) => {
     if (profile && profile.id) {
@@ -109,7 +104,6 @@ export function App() {
       window.history.pushState({}, "", nextPath);
     }
     if (nextPath === "/profil") {
-      setEditorInitialTab(myProfileRef.current ? "skills" : "auth");
       setMobileHint("");
       setMobileHintError(false);
     }
@@ -121,12 +115,8 @@ export function App() {
 
   useEffect(() => {
     const onPopState = () => {
-      const next = window.location.pathname;
-      if (next === "/profil") {
-        setEditorInitialTab(myProfileRef.current ? "skills" : "auth");
-      }
       startTransition(() => {
-        setPathname(next);
+        setPathname(window.location.pathname);
       });
     };
     window.addEventListener("popstate", onPopState);
@@ -144,19 +134,21 @@ export function App() {
     if (savedId) {
       apiGet(`/api/profiles/${savedId}`)
         .then((p) => {
-          setEditorInitialTab("skills");
           setMyProfile(p, true);
         })
         .catch(() => {
-          setEditorInitialTab("auth");
           setMyProfile(null, true);
         });
     }
   }, [setMyProfile]);
 
-  // Reactive debounced search with AbortController (cancels stale requests)
+  // Reactive search with AbortController (0ms when Enter pressed, 100ms debounce while typing)
+  const prevImmediateRef = useRef(0);
   useEffect(() => {
     const trimmed = searchQuery.trim();
+    const isImmediate = immediateSearchTick !== prevImmediateRef.current;
+    prevImmediateRef.current = immediateSearchTick;
+
     if (!trimmed) {
       setProfiles([]);
       setIsSearching(false);
@@ -168,6 +160,7 @@ export function App() {
     setIsSearching(true);
     setSearchError("");
 
+    const delay = isImmediate ? 0 : 100;
     const timer = setTimeout(() => {
       apiGet(
         `/api/profiles?q=${encodeURIComponent(trimmed)}&mode=${encodeURIComponent(searchMode)}`,
@@ -189,19 +182,23 @@ export function App() {
           setSearchError(err.message || "Błąd wyszukiwania");
           setIsSearching(false);
         });
-    }, 100);
+    }, delay);
 
     return () => {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [searchQuery, searchMode, searchRefreshTick]);
+  }, [searchQuery, searchMode, searchRefreshTick, immediateSearchTick]);
 
   const handleSearchChange = useCallback((nextQuery, nextMode) => {
     setSearchQuery(nextQuery);
     if (nextMode) {
       setSearchMode(nextMode);
     }
+  }, []);
+
+  const handleSearchSubmit = useCallback(() => {
+    setImmediateSearchTick((t) => t + 1);
   }, []);
 
   const handleOpenProfile = useCallback(
@@ -226,7 +223,6 @@ export function App() {
 
   const handleProfileSaved = useCallback(
     async (saved) => {
-      setEditorInitialTab("skills");
       setMyProfile(saved, false);
       setSearchRefreshTick((t) => t + 1);
       try {
@@ -241,7 +237,6 @@ export function App() {
 
   const handleProfileLoggedIn = useCallback(
     (found) => {
-      setEditorInitialTab("skills");
       setMyProfile(found, true);
     },
     [setMyProfile]
@@ -249,7 +244,6 @@ export function App() {
 
   const handleLogout = useCallback(() => {
     setSessionPasswords({});
-    setEditorInitialTab("auth");
     setMyProfile(null, true);
     if (window.location.pathname === "/profil") {
       handleStatusChange("Wylogowano z profilu.", false, "Wylogowano");
@@ -260,6 +254,7 @@ export function App() {
     (skill, mode) => {
       setSearchQuery(skill);
       setSearchMode(mode || "all");
+      setImmediateSearchTick((t) => t + 1);
       navigate("/");
     },
     [navigate]
@@ -279,7 +274,7 @@ export function App() {
         mobileHintError={mobileHintError}
       />
 
-      <main className="container" id="app-root">
+      <main className="container" id="app-root" tabIndex={-1}>
         {route.view === "home" && (
           <HomeView
             searchQuery={searchQuery}
@@ -290,6 +285,7 @@ export function App() {
             searchError={searchError}
             myProfile={myProfile}
             onSearchChange={handleSearchChange}
+            onSearchSubmit={handleSearchSubmit}
             onOpenProfile={handleOpenProfile}
           />
         )}
@@ -298,7 +294,6 @@ export function App() {
           <ProfileEditorView
             myProfile={myProfile}
             profileSyncVersion={profileSyncVersion}
-            initialTab={editorInitialTab}
             sessionPasswords={sessionPasswords}
             skillsCatalog={skillsCatalog}
             onSaveSessionPassword={handleSaveSessionPassword}

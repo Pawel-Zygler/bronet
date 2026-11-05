@@ -1,5 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { apiGet } from "../api";
+
+const DETAIL_TABS = [
+  { key: "skills", label: "Umiejętności" },
+  { key: "contact", label: "Kontakt" },
+  { key: "bio", label: "O mnie" },
+];
 
 export function ProfileDetailView({
   profileId,
@@ -12,6 +18,7 @@ export function ProfileDetailView({
   const [activeTab, setActiveTab] = useState("skills");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(!cachedProfile);
+  const tabRefs = useRef({});
 
   useEffect(() => {
     setActiveTab("skills");
@@ -50,8 +57,23 @@ export function ProfileDetailView({
     onBackToSearch();
   };
 
+  const handleTabKeyDown = (e, idx) => {
+    let nextIdx = null;
+    if (e.key === "ArrowRight") nextIdx = (idx + 1) % DETAIL_TABS.length;
+    else if (e.key === "ArrowLeft") nextIdx = (idx - 1 + DETAIL_TABS.length) % DETAIL_TABS.length;
+    else if (e.key === "Home") nextIdx = 0;
+    else if (e.key === "End") nextIdx = DETAIL_TABS.length - 1;
+
+    if (nextIdx !== null) {
+      e.preventDefault();
+      const nextKey = DETAIL_TABS[nextIdx].key;
+      setActiveTab(nextKey);
+      tabRefs.current[nextKey]?.focus();
+    }
+  };
+
   return (
-    <section id="view-detail" className="view view-animate">
+    <section id="view-detail" className="view view-animate" aria-labelledby="detail-heading">
       <div className="detail-top">
         <a href="/" className="back-link" onClick={handleBack}>
           ← Szukaj chłopa
@@ -60,35 +82,51 @@ export function ProfileDetailView({
 
       <div className="detail-sheet">
         {loading && !profile ? (
-          <p className="label-sub">Ładowanie profilu...</p>
+          <p className="label-sub" role="status" aria-live="polite">
+            Ładowanie profilu...
+          </p>
         ) : error && !profile ? (
-          <div className="empty-state">Nie znaleziono profilu ({error}).</div>
+          <div className="empty-state" role="alert">
+            Nie znaleziono profilu ({error}).
+          </div>
         ) : profile ? (
           <>
-            <h1 className="page-title" style={{ marginBottom: 16 }}>
+            <h1 className="page-title" id="detail-heading" style={{ marginBottom: 16 }}>
               Profil
             </h1>
 
             <div className="profile-tabs" role="tablist" aria-label="Sekcje profilu">
-              {[
-                { key: "skills", label: "Umiejętności" },
-                { key: "contact", label: "Kontakt" },
-                { key: "bio", label: "O mnie" },
-              ].map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  role="tab"
-                  aria-selected={activeTab === tab.key}
-                  className={`profile-tab ${activeTab === tab.key ? "is-active" : ""}`}
-                  onClick={() => setActiveTab(tab.key)}
-                >
-                  {tab.label}
-                </button>
-              ))}
+              {DETAIL_TABS.map((tab, idx) => {
+                const isSelected = activeTab === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    ref={(el) => {
+                      tabRefs.current[tab.key] = el;
+                    }}
+                    id={`detail-tab-${tab.key}`}
+                    type="button"
+                    role="tab"
+                    tabIndex={isSelected ? 0 : -1}
+                    aria-selected={isSelected}
+                    aria-controls={`detail-panel-${tab.key}`}
+                    className={`profile-tab ${isSelected ? "is-active" : ""}`}
+                    onClick={() => setActiveTab(tab.key)}
+                    onKeyDown={(e) => handleTabKeyDown(e, idx)}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="profile-tab-panel" hidden={activeTab !== "skills"}>
+            <div
+              id="detail-panel-skills"
+              role="tabpanel"
+              aria-labelledby="detail-tab-skills"
+              className="profile-tab-panel"
+              hidden={activeTab !== "skills"}
+            >
               <div className="detail-line" style={{ margin: 0 }}>
                 <strong>Imię:</strong> {profile.name}
               </div>
@@ -102,6 +140,7 @@ export function ProfileDetailView({
                         key={s}
                         type="button"
                         className="skill-tag"
+                        aria-label={`Szukaj osób, które umieją: ${s}`}
                         onClick={() => onJumpToSkillSearch(s, "can_help")}
                       >
                         {s}
@@ -122,6 +161,7 @@ export function ProfileDetailView({
                         key={s}
                         type="button"
                         className="skill-tag"
+                        aria-label={`Szukaj osób potrzebujących: ${s}`}
                         onClick={() => onJumpToSkillSearch(s, "need_help")}
                       >
                         {s}
@@ -134,7 +174,13 @@ export function ProfileDetailView({
               </div>
             </div>
 
-            <div className="profile-tab-panel" hidden={activeTab !== "contact"}>
+            <div
+              id="detail-panel-contact"
+              role="tabpanel"
+              aria-labelledby="detail-tab-contact"
+              className="profile-tab-panel"
+              hidden={activeTab !== "contact"}
+            >
               {profile.email ? (
                 <div className="detail-contact-box" style={{ marginTop: 0 }}>
                   <strong>E-mail:</strong>{" "}
@@ -156,7 +202,13 @@ export function ProfileDetailView({
               )}
             </div>
 
-            <div className="profile-tab-panel" hidden={activeTab !== "bio"}>
+            <div
+              id="detail-panel-bio"
+              role="tabpanel"
+              aria-labelledby="detail-tab-bio"
+              className="profile-tab-panel"
+              hidden={activeTab !== "bio"}
+            >
               {profile.bio ? (
                 <p className="detail-bio-text">{profile.bio}</p>
               ) : (
@@ -169,4 +221,3 @@ export function ProfileDetailView({
     </section>
   );
 }
-

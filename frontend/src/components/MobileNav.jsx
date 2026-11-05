@@ -11,6 +11,7 @@ export function MobileNav({ activeNav, myProfile, onNavigate }) {
     <nav className="mobile-bottom-nav" aria-label="Nawigacja mobilna">
       <a
         href="/"
+        aria-current={activeNav === "home" ? "page" : undefined}
         className={`mobile-nav-item ${activeNav === "home" ? "is-active" : ""}`}
         onClick={(e) => handleLink(e, "/")}
       >
@@ -22,6 +23,7 @@ export function MobileNav({ activeNav, myProfile, onNavigate }) {
       </a>
       <a
         href="/profil"
+        aria-current={activeNav === "profile" ? "page" : undefined}
         className={`mobile-nav-item ${activeNav === "profile" ? "is-active" : ""}`}
         onClick={(e) => handleLink(e, "/profil")}
       >
@@ -34,4 +36,3 @@ export function MobileNav({ activeNav, myProfile, onNavigate }) {
     </nav>
   );
 }
-

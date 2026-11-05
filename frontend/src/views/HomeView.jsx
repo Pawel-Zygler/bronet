@@ -11,6 +11,7 @@ export function HomeView({
   searchError,
   myProfile,
   onSearchChange,
+  onSearchSubmit,
   onOpenProfile,
 }) {
   const inputRef = useRef(null);
@@ -39,6 +40,13 @@ export function HomeView({
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const handleFormSubmit = (e) => {
+    e.preventDefault();
+    if (onSearchSubmit) {
+      onSearchSubmit();
+    }
+  };
+
   const modeLabel =
     searchMode === "can_help"
       ? "w sekcji „Umiem”"
@@ -47,81 +55,87 @@ export function HomeView({
       : "";
 
   return (
-    <section id="view-home" className="view view-animate">
+    <section id="view-home" className="view view-animate" aria-labelledby="home-heading">
       <div className="hero">
-        <h1 className="hero-title">Jeden chłop pomaga drugiemu.</h1>
+        <h1 className="hero-title" id="home-heading">
+          Jeden chłop pomaga drugiemu.
+        </h1>
         <p className="hero-subtitle">
           Zapisz w profilu co <strong>umiesz</strong> i czego <strong>potrzebujesz</strong>. Wyszukaj
           ludzi po umiejętnościach i wymieńcie się konkretną pomocą.
         </p>
       </div>
 
-      <div className="search-section" aria-label="Wyszukiwarka profili">
-        <div className="search-box">
-          <svg
-            className="search-icon"
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            aria-hidden="true"
-          >
-            <circle cx="11" cy="11" r="7" />
-            <line x1="20" y1="20" x2="16.35" y2="16.35" />
-          </svg>
-          <input
-            ref={inputRef}
-            type="search"
-            id="search-input"
-            className="search-input"
-            placeholder="Szukaj po umiejętnościach lub imieniu (np. qa, it, finanse, związki)..."
-            autoComplete="off"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value, searchMode)}
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              className="search-clear"
-              aria-label="Wyczyść wyszukiwanie"
-              onClick={() => {
-                onSearchChange("", searchMode);
-                inputRef.current?.focus();
-              }}
+      <div className="search-section">
+        <form role="search" aria-label="Wyszukiwarka profili" onSubmit={handleFormSubmit}>
+          <div className="search-box">
+            <svg
+              className="search-icon"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              aria-hidden="true"
             >
-              ×
-            </button>
-          )}
-        </div>
+              <circle cx="11" cy="11" r="7" />
+              <line x1="20" y1="20" x2="16.35" y2="16.35" />
+            </svg>
+            <input
+              ref={inputRef}
+              type="search"
+              id="search-input"
+              className="search-input"
+              aria-label="Szukaj po umiejętnościach lub imieniu"
+              placeholder="Szukaj po umiejętnościach lub imieniu (np. qa, it, finanse, związki)..."
+              enterKeyHint="search"
+              autoComplete="off"
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value, searchMode)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape" && searchQuery) {
+                  e.preventDefault();
+                  onSearchChange("", searchMode);
+                }
+              }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                className="search-clear"
+                aria-label="Wyczyść wyszukiwanie"
+                onClick={() => {
+                  onSearchChange("", searchMode);
+                  inputRef.current?.focus();
+                }}
+              >
+                ×
+              </button>
+            )}
+          </div>
+        </form>
 
-        <div className="filter-bar" role="tablist" aria-label="Filtruj zakres wyszukiwania">
-          <button
-            type="button"
-            className={`filter-pill ${searchMode === "all" ? "is-active" : ""}`}
-            onClick={() => onSearchChange(searchQuery, "all")}
-          >
-            Wszystkie
-          </button>
-          <button
-            type="button"
-            className={`filter-pill ${searchMode === "can_help" ? "is-active" : ""}`}
-            onClick={() => onSearchChange(searchQuery, "can_help")}
-          >
-            Umiem (kto pomoże)
-          </button>
-          <button
-            type="button"
-            className={`filter-pill ${searchMode === "need_help" ? "is-active" : ""}`}
-            onClick={() => onSearchChange(searchQuery, "need_help")}
-          >
-            Potrzebuję (kto szuka)
-          </button>
+        <div className="filter-bar" role="group" aria-label="Filtruj zakres wyszukiwania">
+          {[
+            { key: "all", label: "Wszystkie" },
+            { key: "can_help", label: "Umiem (kto pomoże)" },
+            { key: "need_help", label: "Potrzebuję (kto szuka)" },
+          ].map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              aria-pressed={searchMode === item.key}
+              className={`filter-pill ${searchMode === item.key ? "is-active" : ""}`}
+              onClick={() => onSearchChange(searchQuery, item.key)}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
 
         {popularItems.length > 0 && (
-          <div className="popular-skills">
+          <div className="popular-skills" role="group" aria-label="Popularne umiejętności">
             <span className="popular-label">Popularne:</span>
             {popularItems.map((item) => {
               const isSelected = Boolean(activeNorm && activeNorm === normalizeText(item.skill));
@@ -129,6 +143,7 @@ export function HomeView({
                 <button
                   key={item.skill}
                   type="button"
+                  aria-pressed={isSelected}
                   className={`skill-filter-chip ${isSelected ? "is-selected" : ""}`}
                   onClick={() => handlePopularClick(item.skill)}
                 >
@@ -142,7 +157,7 @@ export function HomeView({
 
       {trimmedQuery && (
         <div className={`search-results-wrap ${isSearching ? "is-loading" : ""}`}>
-          <div className="results-header">
+          <div className="results-header" role="status" aria-live="polite">
             <span className="results-count">
               {isSearching && profiles.length === 0
                 ? "Szukanie..."
@@ -154,7 +169,9 @@ export function HomeView({
           </div>
 
           {searchError ? (
-            <div className="empty-state">Nie udało się pobrać profili: {searchError}</div>
+            <div className="empty-state" role="alert">
+              Nie udało się pobrać profili: {searchError}
+            </div>
           ) : !isSearching && profiles.length === 0 ? (
             <div className="empty-state">
               Brak profili pasujących do wyszukiwania „{trimmedQuery}”.
@@ -163,7 +180,10 @@ export function HomeView({
                 type="button"
                 className="text-action"
                 style={{ marginTop: 8 }}
-                onClick={() => onSearchChange("", "all")}
+                onClick={() => {
+                  onSearchChange("", "all");
+                  inputRef.current?.focus();
+                }}
               >
                 Wyczyść wyszukiwanie
               </button>
@@ -188,4 +208,3 @@ export function HomeView({
     </section>
   );
 }
-
