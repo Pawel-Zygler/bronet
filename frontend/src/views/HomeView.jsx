@@ -61,8 +61,10 @@ export function HomeView({
           Jeden chłop pomaga drugiemu
         </h1>
         <p className="hero-subtitle">
-          Zapisz w profilu co <strong>umiesz</strong> i czego <strong>potrzebujesz</strong>. Wyszukaj
-          ludzi po umiejętnościach i wymieńcie się konkretną pomocą. Serwis tylko dla mężczyzn.
+          chłop pomaga chłopu za free, aby sobie chłopy pomagały nawzajem
+          <br />
+          <br />
+          no women. no money. no bs
         </p>
       </div>
 
