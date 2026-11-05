@@ -14,4 +14,10 @@ README.md
 frontend/node_modules
 node_modules
 static
+e2e
+playwright.config.js
+package.json
+package-lock.json
+test-results
+playwright-report
 
