@@ -616,6 +616,22 @@ button:focus-visible {
   margin-bottom: 16px;
 }
 
+.create-prompt-banner {
+  margin-bottom: 18px;
+  padding: 12px 15px;
+  border-radius: var(--radius);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  font-size: 0.93rem;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.create-prompt-banner strong {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
 .profile-tabs {
   display: flex;
   align-items: center;

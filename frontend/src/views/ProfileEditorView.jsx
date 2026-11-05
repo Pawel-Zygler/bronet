@@ -31,6 +31,7 @@ export function ProfileEditorView({
 
   // When logged out: "login" (dedicated front login form) or "create" (new profile form)
   const [unauthMode, setUnauthMode] = useState("login");
+  const [autoCreateEmail, setAutoCreateEmail] = useState("");
   const [activeTab, setActiveTab] = useState("skills");
   const [hasPassword, setHasPassword] = useState(Boolean(myProfile?.has_password));
 
@@ -99,6 +100,7 @@ export function ProfileEditorView({
       setDeletePassword("");
       setForceShowDeletePw(false);
       setDeleteError("");
+      setAutoCreateEmail("");
     } else {
       setEditingId(null);
       setHasPassword(false);
@@ -113,6 +115,7 @@ export function ProfileEditorView({
       setCanHelpInput("");
       setNeedHelpInput("");
       setUnauthMode("login");
+      setAutoCreateEmail("");
       setActiveTab("skills");
       setInvalidField("");
       setConfirmingDelete(false);
@@ -237,9 +240,21 @@ export function ProfileEditorView({
         onSaveSessionPassword(found.id, password);
       }
       onProfileLoggedIn(found);
+      setAutoCreateEmail("");
       setActiveTab("skills");
       reportStatus(`Zalogowano do profilu „${found.name}” ✓`, false, "Zalogowano ✓");
     } catch (err) {
+      if (err && err.status === 404) {
+        setEmail(cleanEmail);
+        setAutoCreateEmail(cleanEmail);
+        setUnauthMode("create");
+        setActiveTab("skills");
+        reportStatus("", false);
+        requestAnimationFrame(() => {
+          nameInputRef.current?.focus();
+        });
+        return;
+      }
       const msg = err.message || "Nie udało się zalogować.";
       const isPwErr = msg.toLowerCase().includes("hasł");
       reportStatus(msg, true, null, isPwErr ? "password" : "email");
@@ -260,6 +275,7 @@ export function ProfileEditorView({
 
   const handleStartCreate = () => {
     reportStatus("", false);
+    setAutoCreateEmail("");
     setUnauthMode("create");
     setActiveTab("skills");
     requestAnimationFrame(() => {
@@ -269,6 +285,7 @@ export function ProfileEditorView({
 
   const handleBackToLogin = () => {
     reportStatus("", false);
+    setAutoCreateEmail("");
     setUnauthMode("login");
     requestAnimationFrame(() => {
       loginEmailRef.current?.focus();
@@ -410,6 +427,7 @@ export function ProfileEditorView({
         setPassword(effectivePw);
       }
       setNewPassword("");
+      setAutoCreateEmail("");
       setEditingId(saved.id);
       setHasPassword(Boolean(saved.has_password));
       if (wasCreating) {
@@ -441,7 +459,7 @@ export function ProfileEditorView({
     <section id="view-editor" className="view view-animate" aria-labelledby="editor-heading">
       <div className="editor-header-row">
         <h1 className="page-title" id="editor-heading">
-          Profil
+          {!isLoggedIn && !showLoginFront ? "Załóż profil" : "Profil"}
         </h1>
         {isLoggedIn ? (
           <button type="button" className="text-action" onClick={handleLogoutClick}>
@@ -556,6 +574,13 @@ export function ProfileEditorView({
         </>
       ) : (
         <>
+          {!isLoggedIn && autoCreateEmail && (
+            <div className="create-prompt-banner" role="status" aria-live="polite">
+              Nie znaleziono profilu dla <strong>{autoCreateEmail}</strong> — załóż go teraz. Twój
+              e-mail i hasło zostały już wpisane, uzupełnij imię oraz umiejętności poniżej.
+            </div>
+          )}
+
           <div className="profile-tabs" role="tablist" aria-label="Sekcje profilu">
             {EDITOR_TABS.map((tab, idx) => {
               const isSelected = activeTab === tab.key;

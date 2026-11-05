@@ -5,7 +5,9 @@ export async function apiGet(url, signal) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Błąd HTTP ${res.status}`);
+    const error = new Error(err.detail || `Błąd HTTP ${res.status}`);
+    error.status = res.status;
+    throw error;
   }
   return res.json();
 }
@@ -22,7 +24,9 @@ export async function apiSend(url, method, body, extraHeaders = {}) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Błąd zapisu (${res.status})`);
+    const error = new Error(err.detail || `Błąd zapisu (${res.status})`);
+    error.status = res.status;
+    throw error;
   }
   return res.json();
 }
