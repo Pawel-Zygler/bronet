@@ -30,6 +30,33 @@ URL lokalny: http://127.0.0.1:8000
 | `npm run test:prod:smoke` | Testy `@smoke` na produkcji Railway |
 | `npm run test:prod:regression` | Pełna regresja `@regression` na produkcji Railway |
 
+## Automation Gate (Kryteria automatyzacji testów)
+
+Zasada decyzyjna przed automatyzacją nowego przypadku testowego:
+
+1. **Czy wykonanie testu będzie powtarzane w przyszłości?** (T/N)
+2. **Czy automatyzacja tego przypadku jest możliwa?** (T/N)
+3. **Jak ważny jest ten przypadek dla aplikacji?** (Skala 1 – 5)
+4. **Jak łatwa jest automatyzacja tego przypadku?** (Skala 1 – 5)
+
+**Reguły bramki:**
+- Jeśli pytanie 1 lub 2 = **„N”** → **Nie automatyzuj**.
+- Pytania 3 i 4 → **Suma punktów (2 – 10)**. Przypadki z wyższą rangą są automatyzowane w pierwszej kolejności.
+
+### Ocena obecnego zestawu testów w Bronet
+
+| Przypadek testowy | Typ | Q1 (Powtarzalny?) | Q2 (Możliwy?) | Q3 (Waga 1-5) | Q4 (Łatwość 1-5) | Suma (Ranga) | Status bramki |
+|---|---|---|---|---|---|---|---|
+| Smoke: Landing & Header | E2E `@smoke` | T | T | 5 | 5 | **10** | Spełnia (Top priorytet) |
+| Backend CRUD, Auth & Matching | Unit | T | T | 5 | 5 | **10** | Spełnia (Top priorytet) |
+| Diakrytyki i filtry wyszukiwania | Unit | T | T | 5 | 5 | **10** | Spełnia (Top priorytet) |
+| Cykl życia profilu (auto-create, login, delete) | E2E `@smoke` | T | T | 5 | 4 | **9** | Spełnia |
+| Przełączanie Compact View & email link | E2E `@smoke` | T | T | 4 | 5 | **9** | Spełnia |
+| Formularz logowania dla gościa | E2E `@regression` | T | T | 4 | 5 | **9** | Spełnia |
+| Szukanie po skillu i widok read-only | E2E `@regression` | T | T | 4 | 4 | **8** | Spełnia |
+
+*Wszystkie obecne testy w repozytorium spełniają kryteria bramki (Q1=T, Q2=T, wysoki ranking 8–10).*
+
 ## CI/CD (GitHub Actions)
 
 Workflow [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) uruchamia się przy pushu/PR na `main`:
