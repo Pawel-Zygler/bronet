@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiSend } from "../api";
-import { mergeUniqueSkills, normalizeText } from "../utils/text";
+import { isFemaleName, mergeUniqueSkills, normalizeText } from "../utils/text";
 
 const DEFAULT_CAN_SUGGESTIONS = ["qa", "it", "związki", "relacje męsko-damskie", "ux/ui", "finanse"];
 const DEFAULT_NEED_SUGGESTIONS = ["finanse", "sdlc", "realizacja pomysłów", "it", "podatki b2b", "angielski"];
@@ -378,6 +378,17 @@ export function ProfileEditorView({
     const cleanName = name.trim();
     if (!cleanName) {
       reportStatus("Podaj imię.", true, null, "name");
+      focusTabField("skills", nameInputRef);
+      return;
+    }
+
+    if (isFemaleName(cleanName)) {
+      reportStatus(
+        "Platforma Bronet jest wyłącznie dla facetów (men only). Dozwolone są tylko męskie profile.",
+        true,
+        "Tylko profile męskie",
+        "name"
+      );
       focusTabField("skills", nameInputRef);
       return;
     }

@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.database import (
     ProfileAuthError,
+    ProfileValidationError,
     authenticate_profile_by_email,
     create_profile,
     delete_profile,
@@ -88,6 +89,8 @@ def api_create_profile(payload: ProfilePayload) -> dict:
         raise HTTPException(status_code=422, detail="Imię nie może być puste.")
     try:
         return create_profile(payload.dict())
+    except ProfileValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     except ProfileAuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc))
 
@@ -106,6 +109,8 @@ def api_update_profile(profile_id: int, payload: ProfilePayload) -> dict:
         raise HTTPException(status_code=422, detail="Imię nie może być puste.")
     try:
         updated = update_profile(profile_id, payload.dict())
+    except ProfileValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     except ProfileAuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc))
     if not updated:

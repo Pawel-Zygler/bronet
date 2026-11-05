@@ -1154,6 +1154,76 @@ button:focus-visible {
   border-color: var(--text-strong);
 }
 
+/* Pagination Bar */
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 14px 18px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.pagination-btn {
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  padding: 8px 16px;
+  min-height: 38px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: #ffffff;
+  color: var(--text-strong);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: var(--chip-bg, #f3f4f6);
+  border-color: #cfcfcf;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: #f9f9f9;
+  color: var(--text-muted);
+}
+
+.pagination-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+}
+
+.pagination-current-page {
+  font-size: 0.92rem;
+  color: var(--text-strong);
+}
+
+.pagination-current-page strong {
+  font-weight: 600;
+}
+
+.pagination-range-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.is-compact-mode .pagination-bar {
+  margin-top: 14px;
+  padding: 10px 14px;
+}
+
 /* Mobile Bottom Nav */
 .mobile-bottom-nav {
   display: none;
@@ -1231,6 +1301,25 @@ button:focus-visible {
 
   .profile-card {
     padding: 16px;
+  }
+
+  .pagination-bar {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .pagination-btn {
+    padding: 8px 12px;
+    font-size: 0.82rem;
+    min-height: 42px; /* touch-friendly on mobile */
+  }
+
+  .pagination-current-page {
+    font-size: 0.84rem;
+  }
+
+  .pagination-range-sub {
+    font-size: 0.74rem;
   }
 
   .profile-tabs {

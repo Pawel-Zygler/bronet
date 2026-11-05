@@ -163,10 +163,12 @@ export function App() {
 
   // Reactive search with AbortController (0ms when Enter pressed, 100ms debounce while typing)
   const prevImmediateRef = useRef(0);
+  const activeReqIdRef = useRef(0);
   useEffect(() => {
     const trimmed = searchQuery.trim();
     const isImmediate = immediateSearchTick !== prevImmediateRef.current;
     prevImmediateRef.current = immediateSearchTick;
+    const reqId = ++activeReqIdRef.current;
 
     const controller = new AbortController();
     setIsSearching(true);
@@ -179,6 +181,7 @@ export function App() {
         : `/api/profiles?mode=${encodeURIComponent(searchMode)}`;
       apiGet(url, controller.signal)
         .then((list) => {
+          if (reqId !== activeReqIdRef.current) return;
           setProfiles(Array.isArray(list) ? list : []);
           setProfilesCache((prev) => {
             const next = { ...prev };
@@ -192,6 +195,7 @@ export function App() {
           setIsSearching(false);
         })
         .catch((err) => {
+          if (reqId !== activeReqIdRef.current) return;
           if (err.name === "AbortError") return;
           setSearchError(err.message || "Błąd wyszukiwania");
           setIsSearching(false);

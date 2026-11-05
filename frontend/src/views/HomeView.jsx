@@ -1,6 +1,8 @@
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ProfileCard } from "../components/ProfileCard";
 import { normalizeText } from "../utils/text";
+
+const PAGE_SIZE = 15;
 
 export function HomeView({
   searchQuery,
@@ -16,8 +18,15 @@ export function HomeView({
   onOpenProfile,
 }) {
   const inputRef = useRef(null);
+  const resultsRef = useRef(null);
+  const [currentPage, setCurrentPage] = useState(1);
+
   const trimmedQuery = searchQuery.trim();
   const activeNorm = normalizeText(searchQuery);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, searchMode]);
 
   const popularSource =
     searchMode === "can_help"
@@ -58,7 +67,21 @@ export function HomeView({
   const shouldShowResults = Boolean(
     trimmedQuery || isCompactView || (profiles && profiles.length > 0)
   );
-  const cardList = !trimmedQuery && !isCompactView ? profiles.slice(0, 50) : profiles;
+
+  const totalPages = Math.max(1, Math.ceil((profiles || []).length / PAGE_SIZE));
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (safePage - 1) * PAGE_SIZE;
+  const endIndex = Math.min(startIndex + PAGE_SIZE, (profiles || []).length);
+  const pagedProfiles = (profiles || []).slice(startIndex, endIndex);
+
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage);
+    if (resultsRef.current) {
+      resultsRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      window.scrollTo({ top: 150, behavior: "smooth" });
+    }
+  };
 
   return (
     <section
@@ -171,13 +194,14 @@ export function HomeView({
 
       {shouldShowResults && (
         <div className={`search-results-wrap ${isSearching ? "is-loading" : ""}`}>
-          <div className="results-header" role="status" aria-live="polite">
+          <div ref={resultsRef} className="results-header" role="status" aria-live="polite">
             <span className="results-count">
               {isSearching && profiles.length === 0
                 ? "Szukanie..."
                 : trimmedQuery
                   ? `Znalezione profile: ${profiles.length}`
                   : `Wszystkie profile: ${profiles.length}`}
+              {totalPages > 1 && ` (strona ${safePage} z ${totalPages})`}
             </span>
             <span className="active-filter-hint">
               {trimmedQuery
@@ -212,7 +236,7 @@ export function HomeView({
             </div>
           ) : isCompactView ? (
             <ul className="compact-profiles-list" role="list">
-              {profiles.map((p) => {
+              {pagedProfiles.map((p) => {
                 const canText =
                   p.can_help && p.can_help.length > 0 ? p.can_help.join(", ") : "—";
                 const needText =
@@ -323,7 +347,7 @@ export function HomeView({
             </ul>
           ) : (
             <div className="profiles-list">
-              {cardList.map((p) => (
+              {pagedProfiles.map((p) => (
                 <ProfileCard
                   key={p.id}
                   profile={p}
@@ -335,6 +359,41 @@ export function HomeView({
                 />
               ))}
             </div>
+          )}
+
+          {totalPages > 1 && (
+            <nav className="pagination-bar" aria-label="Stronicowanie wyników">
+              <button
+                type="button"
+                id="pagination-prev"
+                className="pagination-btn pagination-prev"
+                disabled={safePage <= 1}
+                onClick={() => handlePageChange(safePage - 1)}
+                aria-label="Poprzednia strona"
+              >
+                ← Poprzednia
+              </button>
+
+              <div className="pagination-info" aria-live="polite">
+                <span className="pagination-current-page">
+                  Strona <strong>{safePage}</strong> z <strong>{totalPages}</strong>
+                </span>
+                <span className="pagination-range-sub">
+                  ({startIndex + 1}–{endIndex} z {profiles.length})
+                </span>
+              </div>
+
+              <button
+                type="button"
+                id="pagination-next"
+                className="pagination-btn pagination-next"
+                disabled={safePage >= totalPages}
+                onClick={() => handlePageChange(safePage + 1)}
+                aria-label="Następna strona"
+              >
+                Następna →
+              </button>
+            </nav>
           )}
         </div>
       )}

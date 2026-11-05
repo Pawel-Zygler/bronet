@@ -78,4 +78,65 @@ test.describe("Landing & Search", () => {
       await expect(page.locator(".compact-profiles-list")).toHaveCount(0);
     }
   );
+
+  test(
+    "potwierdza brak profili żeńskich 'kasia' i 'basia' w wyszukiwarce (men only)",
+    { tag: ["@smoke", "@regression"] },
+    async ({ page }) => {
+      await page.goto("/");
+
+      const searchInput = page.locator("#search-input");
+
+      // Wyszukanie 'kasia'
+      await searchInput.fill("kasia");
+      await expect(page.locator(".empty-state")).toContainText(
+        "Brak profili pasujących do wyszukiwania „kasia”"
+      );
+      await expect(page.locator(".profile-card")).toHaveCount(0);
+
+      // Wyszukanie 'basia'
+      await searchInput.fill("basia");
+      await expect(page.locator(".empty-state")).toContainText(
+        "Brak profili pasujących do wyszukiwania „basia”"
+      );
+      await expect(page.locator(".profile-card")).toHaveCount(0);
+    }
+  );
+
+  test(
+    "stronicuje listę profili (15 profili na stronę) oraz umożliwia przejście do kolejnych stron",
+    { tag: ["@smoke", "@regression"] },
+    async ({ page }) => {
+      await page.goto("/");
+
+      // Sprawdź limit 15 profili na pierwszej stronie w widoku kart
+      await expect(page.locator(".profile-card")).toHaveCount(15);
+
+      const paginationBar = page.locator(".pagination-bar");
+      await expect(paginationBar).toBeVisible();
+      await expect(page.locator(".pagination-current-page")).toContainText("Strona 1 z");
+
+      const prevBtn = page.locator("#pagination-prev");
+      const nextBtn = page.locator("#pagination-next");
+
+      await expect(prevBtn).toBeDisabled();
+      await expect(nextBtn).toBeEnabled();
+
+      // Przejście na stronę 2
+      await nextBtn.click();
+      await expect(page.locator(".pagination-current-page")).toContainText("Strona 2 z");
+      await expect(prevBtn).toBeEnabled();
+      await expect(page.locator(".profile-card")).toHaveCount(15);
+
+      // Przejście z powrotem na stronę 1
+      await prevBtn.click();
+      await expect(page.locator(".pagination-current-page")).toContainText("Strona 1 z");
+      await expect(prevBtn).toBeDisabled();
+
+      // W widoku kompaktowym również obowiązuje limit 15 profili
+      await page.locator("#compact-view-toggle").click();
+      await expect(page.locator(".compact-profile-item")).toHaveCount(15);
+      await expect(paginationBar).toBeVisible();
+    }
+  );
 });

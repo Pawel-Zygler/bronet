@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import sqlite3
 from datetime import datetime, timezone
@@ -27,6 +28,77 @@ PL_CHAR_MAP = str.maketrans(
 
 class ProfileAuthError(Exception):
     """Raised when a profile requires a password or the provided password is invalid."""
+
+
+class ProfileValidationError(Exception):
+    """Raised when profile data violates platform rules (e.g. non-male name in men-only platform)."""
+
+
+# Męskie wyjątki imion kończących się na literę 'a'
+MALE_EXCEPTIONS_ENDING_IN_A = {
+    "kuba", "barnaba", "kosma", "bonawentura", "jarema", "zawisza",
+    "akira", "mustafa", "luca", "andrea", "sasha", "eliah"
+}
+
+# Popularne polskie imiona i zdrobnienia żeńskie
+FEMALE_NAME_TOKENS = {
+    "kasia", "basia", "ania", "asia", "gosia", "zosia", "ula", "ola", "magda",
+    "madzia", "aga", "agatka", "ewa", "krysia", "kaska", "baska", "anka", "olka",
+    "monika", "anna", "maria", "katarzyna", "barbara", "elzbieta", "aleksandra",
+    "zofia", "patrycja", "natalia", "karolina", "paulina", "weronika", "klaudia",
+    "dominika", "kamila", "kinga", "sandra", "dagmara", "sylwia", "renata",
+    "beata", "dorota", "iwona", "marzena", "grazyna", "danuta", "halina",
+    "krystyna", "teresa", "jadwiga", "irena", "stanislawa", "janina", "czeslawa",
+    "helena", "kazimiera", "genowefa", "marianna", "stefania", "wladyslawa",
+    "alina", "bogumila", "wieslawa", "julia", "maja", "zuzanna", "hanna", "lena",
+    "alicja", "oliwia", "laura", "pola", "antonina", "wiktoria", "emilia", "nikola",
+    "gabriela", "martyna", "izabela", "iza", "lucyna", "bozena", "malgorzata",
+    "marcelina", "adriana", "adrianne", "kornelia", "daria", "sonia", "aneta",
+    "edyta", "sabina", "marta", "jagoda", "kalina", "roksana", "lilianna",
+    "miriam", "carmen", "noemi", "ruth", "beatrice", "ines", "inez"
+}
+
+
+def is_female_name(full_name: str) -> bool:
+    """Sprawdza, czy imię jest imieniem żeńskim (platforma jest wyłącznie dla mężczyzn)."""
+    if not full_name:
+        return False
+    cleaned = normalize_text(full_name)
+    parts = cleaned.split()
+    if not parts:
+        return False
+    first_token = re.sub(r"[^a-z]", "", parts[0])
+    if not first_token:
+        return False
+    if first_token in FEMALE_NAME_TOKENS:
+        return True
+    if first_token.endswith("a") and first_token not in MALE_EXCEPTIONS_ENDING_IN_A:
+        return True
+    return False
+
+
+def is_female_email(email: str) -> bool:
+    """Sprawdza, czy adres e-mail wskazuje na profil żeński (np. kasia@, basia.nowak@)."""
+    if not email or "@" not in email:
+        return False
+    local_part = email.split("@")[0].lower()
+    local_tokens = re.sub(r"[^a-z]", " ", normalize_text(local_part)).split()
+    if not local_tokens:
+        return False
+    first = local_tokens[0]
+    if first in FEMALE_NAME_TOKENS:
+        return True
+    if first.endswith("a") and first not in MALE_EXCEPTIONS_ENDING_IN_A:
+        return True
+    return False
+
+
+def validate_men_only(name: str, email: str = "") -> None:
+    """Weryfikuje regułę men-only — odrzuca żeńskie imiona i adresy e-mail."""
+    if is_female_name(name) or is_female_email(email):
+        raise ProfileValidationError(
+            "Platforma Bronet jest wyłącznie dla facetów (men only). Dozwolone są tylko męskie profile."
+        )
 
 
 def get_db_path() -> Path:
@@ -193,9 +265,15 @@ def init_db(seed: bool = True) -> None:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);")
 
         # Usunięcie starych profili żeńskich, jeśli istnieją w trwałej bazie (men only)
-        conn.execute(
-            "DELETE FROM profiles WHERE email IN ('kasia@bronet.pl', 'ania@bronet.pl') OR name IN ('Kasia', 'Ania');"
-        )
+        rows = conn.execute("SELECT id, name, email FROM profiles").fetchall()
+        female_ids = [
+            r["id"]
+            for r in rows
+            if is_female_name(r["name"]) or is_female_email(r["email"])
+        ]
+        if female_ids:
+            ph = ",".join("?" for _ in female_ids)
+            conn.execute(f"DELETE FROM profiles WHERE id IN ({ph})", female_ids)
 
         if seed:
             row = conn.execute("SELECT COUNT(*) AS cnt FROM profiles").fetchone()
@@ -238,6 +316,7 @@ def _insert_profile_in_tx(conn: sqlite3.Connection, data: Dict[str, Any]) -> int
     now = _now_iso()
     name = str(data.get("name") or "").strip()
     email = normalize_email(data.get("email"))
+    validate_men_only(name, email)
     pwd_hash = data.get("password_hash")
     if not pwd_hash:
         raw_password = str(data.get("password") or "")
@@ -444,7 +523,9 @@ def get_profile_by_email(email: str) -> Optional[Dict[str, Any]]:
 
 
 def create_profile(data: Dict[str, Any]) -> Dict[str, Any]:
+    name = str(data.get("name") or "").strip()
     email = normalize_email(data.get("email"))
+    validate_men_only(name, email)
     if email:
         with get_connection() as conn:
             existing_row = conn.execute(
@@ -492,6 +573,7 @@ def update_profile(profile_id: int, data: Dict[str, Any]) -> Optional[Dict[str, 
         now = _now_iso()
         name = str(data.get("name") or "").strip()
         email = normalize_email(data.get("email"))
+        validate_men_only(name, email)
         contact = str(data.get("contact") or "").strip()
         if not contact and email:
             contact = email

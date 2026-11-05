@@ -67,6 +67,7 @@ test.describe("Profile lifecycle", () => {
 
         // 6. Ponowne wyszukanie usuniętego profilu — potwierdzenie braku w wyszukiwarce
         await page.locator(".desktop-nav").getByRole("link", { name: "Szukaj chłopa" }).click();
+        await page.locator("#search-input").fill("");
         await page.locator("#search-input").fill(testEmail);
         await expect(page.locator(".empty-state")).toContainText(
           `Brak profili pasujących do wyszukiwania „${testEmail}”`
@@ -79,6 +80,28 @@ test.describe("Profile lifecycle", () => {
           });
         }
       }
+    }
+  );
+
+  test(
+    "blokuje rejestrację profilu z żeńskim imieniem (np. Basia / Kasia) — men only",
+    { tag: ["@smoke", "@regression"] },
+    async ({ page }) => {
+      await page.goto("/profil");
+
+      await page.locator("#login-email").fill("nowa.kasia@bronet.test");
+      await page.locator("#login-password").fill("haslo123");
+      await page.locator("#login-password").press("Enter");
+
+      await expect(page.locator("#editor-heading")).toHaveText("Załóż profil");
+
+      await page.locator("#field-name").fill("Basia");
+      await page.locator("#field-can-help").fill("księgowość");
+      await page.getByRole("button", { name: "Dodaj umiejętność do Umiem" }).click();
+
+      await page.getByRole("button", { name: "Zapisz profil" }).click();
+
+      await expect(page.locator("#editor-feedback")).toContainText("men only");
     }
   );
 });

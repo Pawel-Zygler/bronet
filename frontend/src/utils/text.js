@@ -49,3 +49,37 @@ export function mergeUniqueSkills(currentList, rawValue) {
   return additions.length > 0 ? [...currentList, ...additions] : currentList;
 }
 
+const MALE_EXCEPTIONS_A = new Set([
+  "kuba", "barnaba", "kosma", "bonawentura", "jarema", "zawisza",
+  "akira", "mustafa", "luca", "andrea", "sasha", "eliah"
+]);
+
+const FEMALE_NAMES = new Set([
+  "kasia", "basia", "ania", "asia", "gosia", "zosia", "ula", "ola", "magda",
+  "madzia", "aga", "agatka", "ewa", "krysia", "kaska", "baska", "anka", "olka",
+  "monika", "anna", "maria", "katarzyna", "barbara", "elzbieta", "aleksandra",
+  "zofia", "patrycja", "natalia", "karolina", "paulina", "weronika", "klaudia",
+  "dominika", "kamila", "kinga", "sandra", "dagmara", "sylwia", "renata",
+  "beata", "dorota", "iwona", "marzena", "grazyna", "danuta", "halina",
+  "krystyna", "teresa", "jadwiga", "irena", "stanislawa", "janina", "czeslawa",
+  "helena", "kazimiera", "genowefa", "marianna", "stefania", "wladyslawa",
+  "alina", "bogumila", "wieslawa", "julia", "maja", "zuzanna", "hanna", "lena",
+  "alicja", "oliwia", "laura", "pola", "antonina", "wiktoria", "emilia", "nikola",
+  "gabriela", "martyna", "izabela", "iza", "lucyna", "bozena", "malgorzata",
+  "marcelina", "adriana", "adrianne", "kornelia", "daria", "sonia", "aneta",
+  "edyta", "sabina", "marta", "jagoda", "kalina", "roksana", "lilianna",
+  "miriam", "carmen", "noemi", "ruth", "beatrice", "ines", "inez"
+]);
+
+export function isFemaleName(name) {
+  if (!name) return false;
+  const cleaned = normalizeText(name);
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return false;
+  const first = parts[0].replace(/[^a-z]/g, "");
+  if (!first) return false;
+  if (FEMALE_NAMES.has(first)) return true;
+  if (first.endsWith("a") && !MALE_EXCEPTIONS_A.has(first)) return true;
+  return false;
+}
+
