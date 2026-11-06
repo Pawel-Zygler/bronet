@@ -79,14 +79,6 @@ export function Topbar({
                 Dopasowania
               </a>
               <a
-                href="/mapa"
-                aria-current={activeNav === "map" ? "page" : undefined}
-                className={`nav-link ${activeNav === "map" ? "is-active" : ""}`}
-                onClick={(e) => handleLink(e, "/mapa")}
-              >
-                Mapa
-              </a>
-              <a
                 href="/profil"
                 aria-current={activeNav === "profile" ? "page" : undefined}
                 className={`nav-link ${activeNav === "profile" ? "is-active" : ""}`}

@@ -3,7 +3,6 @@ import { apiGet } from "./api";
 import { MobileNav } from "./components/MobileNav";
 import { Topbar } from "./components/Topbar";
 import { HomeView } from "./views/HomeView";
-import { MapView } from "./views/MapView";
 import { MatchingView } from "./views/MatchingView";
 import { ProfileDetailView } from "./views/ProfileDetailView";
 import { ProfileEditorView } from "./views/ProfileEditorView";
@@ -32,9 +31,6 @@ function parseRoute(pathname) {
   if (pathname === "/dopasowania") {
     return { view: "matches", nav: "matches", profileId: null };
   }
-  if (pathname === "/mapa") {
-    return { view: "map", nav: "map", profileId: null };
-  }
   const match = pathname.match(/^\/profil\/(\d+)$/);
   if (match) {
     return { view: "detail", nav: "", profileId: Number(match[1]) };
@@ -60,7 +56,6 @@ export function App() {
   const [searchMode, setSearchMode] = useState("all");
   const [profiles, setProfiles] = useState([]);
   const [profilesCache, setProfilesCache] = useState({});
-  const [mapMatchesData, setMapMatchesData] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [searchRefreshTick, setSearchRefreshTick] = useState(0);
@@ -152,16 +147,12 @@ export function App() {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
-  // Boot: fetch matches data for map when logged in
   useEffect(() => {
-    if (myProfile && myProfile.id) {
-      apiGet(`/api/profiles/${myProfile.id}/matches`)
-        .then((data) => setMapMatchesData(data))
-        .catch(() => setMapMatchesData(null));
-    } else {
-      setMapMatchesData(null);
+    if (pathname === "/mapa") {
+      window.history.replaceState({}, "", "/");
+      setPathname("/");
     }
-  }, [myProfile, searchRefreshTick]);
+  }, [pathname]);
 
   // Initial boot: fetch skills catalog + active profile in parallel
   useEffect(() => {
@@ -364,16 +355,6 @@ export function App() {
             onOpenProfile={handleOpenProfile}
             onNavigate={navigate}
             profiles={profiles}
-          />
-        )}
-
-        {route.view === "map" && (
-          <MapView
-            myProfile={myProfile}
-            profiles={profiles}
-            matchesData={mapMatchesData}
-            onOpenProfile={handleOpenProfile}
-            onNavigate={navigate}
           />
         )}
 

@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import List, Optional
 from fastapi import Body, FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.database import (
@@ -45,7 +45,7 @@ async def revalidate_static_and_spa(request: Request, call_next):
     path = request.url.path
     if path.startswith("/static/assets/"):
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
-    elif path == "/" or path.startswith("/profil") or path.startswith("/dopasowania") or path.startswith("/mapa") or path.startswith("/static/"):
+    elif path == "/" or path.startswith("/profil") or path.startswith("/dopasowania") or path.startswith("/static/"):
         response.headers["Cache-Control"] = "no-cache, must-revalidate"
     return response
 
@@ -191,9 +191,13 @@ def serve_manifest() -> FileResponse:
     return FileResponse(str(STATIC_DIR / "manifest.json"))
 
 
+@app.get("/mapa", include_in_schema=False)
+def redirect_mapa() -> RedirectResponse:
+    return RedirectResponse(url="/", status_code=302)
+
+
 @app.get("/", include_in_schema=False)
 @app.get("/dopasowania", include_in_schema=False)
-@app.get("/mapa", include_in_schema=False)
 @app.get("/profil", include_in_schema=False)
 @app.get("/profil/{profile_id}", include_in_schema=False)
 def serve_spa(profile_id: str = "") -> FileResponse:
