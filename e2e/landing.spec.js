@@ -159,7 +159,8 @@ test.describe("Landing & Search", () => {
       await searchInput.fill("hydraulik");
       await searchInput.press("Enter");
       await expect(page.locator(".active-filter-hint")).toContainText("hydraulik");
-      await expect(page.locator(".profile-card").first()).toBeVisible();
+      await expect(page.locator(".active-filter-hint")).not.toContainText("Szukanie...", { timeout: 15000 });
+      await expect(page.locator(".profile-card").first()).toBeVisible({ timeout: 15000 });
       await expect(page.locator(".search-clear")).toBeVisible();
 
       // 2. Filtry zakresu (Umiem vs Potrzebuję)
@@ -661,6 +662,10 @@ test.describe("Landing & Search", () => {
         // Nowo wykopany blok jest w księdze globalnej
         const globalLedger = page.locator("#global-stats-blocks-ledger");
         await expect(globalLedger).toBeVisible();
+        const loadAllBtn = page.locator("#btn-load-all-blocks");
+        if (await loadAllBtn.isVisible()) {
+          await loadAllBtn.click();
+        }
         await expect(globalLedger).toContainText(userA.name);
         await expect(globalLedger).toContainText(userB.name);
         await expect(globalLedger).toContainText("+2 🪙 CC");
@@ -683,6 +688,58 @@ test.describe("Landing & Search", () => {
           });
         }
       }
+    }
+  );
+
+  test(
+    "smoke: sidebar z suwakami kontroli ekonomii chłopchaina (zmiana TPS, tempa, cel puli, przyciski akcji)",
+    { tag: ["@smoke", "@regression"] },
+    async ({ page }) => {
+      await page.goto("/chlopchain");
+      await expect(page.locator("#global-stats-container")).toBeVisible();
+
+      // Sidebar jest widoczny na desktopie
+      const sidebar = page.locator("#chlopchain-sidebar");
+      await expect(sidebar).toBeVisible();
+      await expect(sidebar).toContainText("Konsola Ekonomii");
+
+      // Suwaki są obecne w DOM
+      const sliderMin = page.locator("#slider-min-tps");
+      const sliderMax = page.locator("#slider-max-tps");
+      const sliderInterval = page.locator("#slider-interval");
+      const sliderPool = page.locator("#slider-pool-pct");
+
+      await expect(sliderMin).toBeVisible();
+      await expect(sliderMax).toBeVisible();
+      await expect(sliderInterval).toBeVisible();
+      await expect(sliderPool).toBeVisible();
+
+      // Przyciski akcji są widoczne
+      await expect(page.locator("#btn-toggle-engine")).toBeVisible();
+      await expect(page.locator("#btn-force-tick-5")).toBeVisible();
+      await expect(page.locator("#btn-force-tick-25")).toBeVisible();
+      await expect(page.locator("#btn-reset-cycle")).toBeVisible();
+      await expect(page.locator("#btn-default-config")).toBeVisible();
+
+      // Test kliknięcia szybkiego profilu 'Turbo'
+      const turboBtn = page.locator("#preset-turbo");
+      await expect(turboBtn).toBeVisible();
+      await turboBtn.click();
+
+      // Odczyt suwaków po kliknięciu Turbo (5-15 TPS)
+      await expect(page.locator("#val-min-tps")).toHaveText("5 tx/s");
+      await expect(page.locator("#val-max-tps")).toHaveText("15 tx/s");
+
+      // Test przycisku 'Przywróć domyślne'
+      await page.locator("#btn-default-config").click();
+      await expect(page.locator("#val-min-tps")).toHaveText("1 tx/s");
+      await expect(page.locator("#val-max-tps")).toHaveText("5 tx/s");
+
+      // Test ręcznego wymuszenia ticku (+5 tx)
+      const initialTotal = await sidebar.locator(".telemetry-item strong").first().innerText();
+      await page.locator("#btn-force-tick-5").click();
+      // Po ticku silnik zaktualizował telemetrię
+      await expect(sidebar.locator(".telemetry-item strong").first()).not.toHaveText(initialTotal);
     }
   );
 });

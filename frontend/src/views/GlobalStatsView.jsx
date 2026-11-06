@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { apiGet } from "../api";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { apiGet, apiSend } from "../api";
 
 export function GlobalStatsView({ onOpenProfile, onNavigate }) {
   const [stats, setStats] = useState(null);
@@ -13,12 +13,34 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
   const [visibleLeaderboardCount, setVisibleLeaderboardCount] = useState(10);
   const [visibleMempoolCount, setVisibleMempoolCount] = useState(10);
 
+  // Kontrolki i suwaki ekonomii silnika
+  const isUserInteractingRef = useRef(false);
+  const debounceTimerRef = useRef(null);
+
+  const [minTps, setMinTps] = useState(1);
+  const [maxTps, setMaxTps] = useState(5);
+  const [intervalSec, setIntervalSec] = useState(1.0);
+  const [dailyPoolPct, setDailyPoolPct] = useState(60);
+  const [isRunning, setIsRunning] = useState(true);
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [configSaveStatus, setConfigSaveStatus] = useState("");
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
   const fetchStats = useCallback(async (isManual = false) => {
     if (isManual) setIsLoading(true);
     setError("");
     try {
       const data = await apiGet("/api/chlopocoin/global-stats");
       setStats(data);
+      if (data && data.simulator) {
+        if (!isUserInteractingRef.current) {
+          if (typeof data.simulator.min_tps === "number") setMinTps(data.simulator.min_tps);
+          if (typeof data.simulator.max_tps === "number") setMaxTps(data.simulator.max_tps);
+          if (typeof data.simulator.interval_seconds === "number") setIntervalSec(data.simulator.interval_seconds);
+          if (typeof data.simulator.daily_pool_pct === "number") setDailyPoolPct(data.simulator.daily_pool_pct);
+          if (typeof data.simulator.is_running === "boolean") setIsRunning(data.simulator.is_running);
+        }
+      }
       setLastRefreshed(new Date());
     } catch (err) {
       setError(err?.message || "Nie udało się pobrać statystyk sieci Chłopchain.");
@@ -29,12 +51,114 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
 
   useEffect(() => {
     fetchStats();
-    // Odświeżanie w tle co 3 sekundy, aby ruch i transakcje 1-5 TPS były widoczne na żywo
+    // Odświeżanie w tle co 3 sekundy, aby ruch i transakcje TPS były widoczne na żywo
     const interval = setInterval(() => {
       fetchStats(false);
     }, 3000);
     return () => clearInterval(interval);
   }, [fetchStats]);
+
+  const sendConfigUpdate = useCallback(
+    async (newConfig) => {
+      setIsSavingConfig(true);
+      setConfigSaveStatus("Zapisywanie...");
+      try {
+        await apiSend("/api/chlopocoin/simulator/config", "POST", newConfig);
+        setConfigSaveStatus("✓ Zapisano");
+        setTimeout(() => setConfigSaveStatus(""), 2000);
+        fetchStats(false);
+      } catch (err) {
+        setConfigSaveStatus("Błąd zapisu!");
+        setTimeout(() => setConfigSaveStatus(""), 3000);
+      } finally {
+        setIsSavingConfig(false);
+        isUserInteractingRef.current = false;
+      }
+    },
+    [fetchStats]
+  );
+
+  const handleSliderChange = (param, val) => {
+    isUserInteractingRef.current = true;
+    let newMin = minTps;
+    let newMax = maxTps;
+    let newInterval = intervalSec;
+    let newPool = dailyPoolPct;
+
+    if (param === "min_tps") {
+      newMin = Number(val);
+      if (newMin > newMax) {
+        newMax = newMin;
+        setMaxTps(newMin);
+      }
+      setMinTps(newMin);
+    } else if (param === "max_tps") {
+      newMax = Number(val);
+      if (newMax < newMin) {
+        newMin = newMax;
+        setMinTps(newMax);
+      }
+      setMaxTps(newMax);
+    } else if (param === "interval_seconds") {
+      newInterval = Number(val);
+      setIntervalSec(newInterval);
+    } else if (param === "daily_pool_pct") {
+      newPool = Number(val);
+      setDailyPoolPct(newPool);
+    }
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      sendConfigUpdate({
+        min_tps: newMin,
+        max_tps: newMax,
+        interval_seconds: newInterval,
+        daily_pool_pct: newPool,
+      });
+    }, 350);
+  };
+
+  const handleApplyPreset = (min, max, intv, pool) => {
+    isUserInteractingRef.current = true;
+    setMinTps(min);
+    setMaxTps(max);
+    setIntervalSec(intv);
+    setDailyPoolPct(pool);
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    sendConfigUpdate({
+      min_tps: min,
+      max_tps: max,
+      interval_seconds: intv,
+      daily_pool_pct: pool,
+    });
+  };
+
+  const handleToggleRunning = async () => {
+    try {
+      const res = await apiSend("/api/chlopocoin/simulator/toggle", "POST");
+      if (res && typeof res.is_running === "boolean") {
+        setIsRunning(res.is_running);
+      }
+      fetchStats(false);
+    } catch (_) {}
+  };
+
+  const handleResetCycle = async () => {
+    if (!window.confirm("Czy na pewno chcesz zresetować cykl ekonomii do Dnia 1?")) return;
+    try {
+      await apiSend("/api/chlopocoin/simulator/reset-cycle", "POST");
+      fetchStats(false);
+    } catch (_) {}
+  };
+
+  const handleForceTick = async (count) => {
+    try {
+      await apiSend(`/api/chlopocoin/simulator/tick?count=${count}`, "POST");
+      fetchStats(false);
+    } catch (_) {}
+  };
 
   const formatDate = (isoStr) => {
     if (!isoStr) return "—";
@@ -59,9 +183,274 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
   };
 
   return (
-    <div className="global-stats-view" id="global-stats-container">
-      {/* Nagłówek sekcji */}
-      <div className="global-stats-header">
+    <div className="chlopchain-layout" id="global-stats-container">
+      {/* Mobile toggle button */}
+      <div className="chlopchain-mobile-bar">
+        <button
+          type="button"
+          id="btn-toggle-economy-sidebar"
+          className="btn btn-secondary btn-sm btn-economy-drawer-toggle"
+          onClick={() => setIsMobileSidebarOpen((prev) => !prev)}
+          aria-expanded={isMobileSidebarOpen}
+          aria-controls="chlopchain-sidebar"
+        >
+          <span>🎛️ {isMobileSidebarOpen ? "Zwiń kontrolki ekonomii" : "Parametry silnika ekonomii (suwaki)"}</span>
+          <span className="drawer-tps-pill">{stats?.simulator?.tps_range || `${minTps}-${maxTps} TPS`}</span>
+        </button>
+      </div>
+
+      {/* Left Sidebar z kontrolkami i suwakami */}
+      <aside
+        className={`chlopchain-sidebar ${isMobileSidebarOpen ? "is-open" : ""}`}
+        id="chlopchain-sidebar"
+        aria-label="Konsola sterowania parametrami ekonomii Chłopchain"
+      >
+        <div className="sidebar-sticky-inner">
+          <div className="sidebar-header">
+            <div className="sidebar-title-row">
+              <span className="sidebar-badge-icon" aria-hidden="true">🎛️</span>
+              <div>
+                <h3 className="sidebar-title">Konsola Ekonomii</h3>
+                <span className="sidebar-subtitle">Suwaki parametrów sieci</span>
+              </div>
+            </div>
+
+            <div className="sidebar-status-pill">
+              <span
+                className={`status-dot ${isRunning ? "dot-active" : "dot-paused"}`}
+                aria-hidden="true"
+              />
+              <span className="status-text">{isRunning ? "Praca ciągła" : "Wstrzymany"}</span>
+            </div>
+          </div>
+
+          {configSaveStatus && (
+            <div className="sidebar-save-alert" role="status">
+              {configSaveStatus}
+            </div>
+          )}
+
+          {/* Szybkie profile */}
+          <div className="sidebar-section">
+            <label className="sidebar-label">Szybkie profile:</label>
+            <div className="preset-btn-grid">
+              <button
+                type="button"
+                id="preset-normal"
+                className="btn btn-preset"
+                onClick={() => handleApplyPreset(1, 5, 1.0, 60)}
+                title="Domyślne ustawienie (1-5 TPS, 1s interwał, 60% puli)"
+              >
+                🚗 Normalny
+              </button>
+              <button
+                type="button"
+                id="preset-turbo"
+                className="btn btn-preset"
+                onClick={() => handleApplyPreset(5, 15, 0.3, 60)}
+                title="Szybkie transakcje (5-15 TPS, 0.3s interwał, 60% puli)"
+              >
+                ⚡ Turbo
+              </button>
+              <button
+                type="button"
+                id="preset-hyper"
+                className="btn btn-preset"
+                onClick={() => handleApplyPreset(15, 40, 0.1, 75)}
+                title="Maksymalna prędkość (15-40 TPS, 0.1s interwał, 75% puli)"
+              >
+                🚀 Hyper
+              </button>
+              <button
+                type="button"
+                id="preset-spokojny"
+                className="btn btn-preset"
+                onClick={() => handleApplyPreset(1, 2, 2.5, 40)}
+                title="Oszczędne tempo (1-2 TPS, 2.5s interwał, 40% puli)"
+              >
+                🐢 Spokojny
+              </button>
+            </div>
+          </div>
+
+          {/* Suwak 1: Minimalne TPS */}
+          <div className="sidebar-control-group">
+            <div className="slider-header">
+              <label htmlFor="slider-min-tps" className="slider-label">
+                Min TPS:
+              </label>
+              <span className="slider-val-badge" id="val-min-tps">
+                {minTps} tx/s
+              </span>
+            </div>
+            <input
+              type="range"
+              id="slider-min-tps"
+              className="economy-range-slider"
+              min="1"
+              max="25"
+              step="1"
+              value={minTps}
+              onChange={(e) => handleSliderChange("min_tps", e.target.value)}
+            />
+            <div className="slider-limits">
+              <span>1 tx/s</span>
+              <span>25 tx/s</span>
+            </div>
+          </div>
+
+          {/* Suwak 2: Maksymalne TPS */}
+          <div className="sidebar-control-group">
+            <div className="slider-header">
+              <label htmlFor="slider-max-tps" className="slider-label">
+                Max TPS:
+              </label>
+              <span className="slider-val-badge" id="val-max-tps">
+                {maxTps} tx/s
+              </span>
+            </div>
+            <input
+              type="range"
+              id="slider-max-tps"
+              className="economy-range-slider"
+              min="1"
+              max="50"
+              step="1"
+              value={maxTps}
+              onChange={(e) => handleSliderChange("max_tps", e.target.value)}
+            />
+            <div className="slider-limits">
+              <span>1 tx/s</span>
+              <span>50 tx/s</span>
+            </div>
+          </div>
+
+          {/* Suwak 3: Interwał pętli / Tempo */}
+          <div className="sidebar-control-group">
+            <div className="slider-header">
+              <label htmlFor="slider-interval" className="slider-label">
+                Interwał pętli (tempo):
+              </label>
+              <span className="slider-val-badge" id="val-interval">
+                {intervalSec.toFixed(1)}s {intervalSec <= 0.3 ? "⚡" : intervalSec <= 1.0 ? "🚗" : "🐢"}
+              </span>
+            </div>
+            <input
+              type="range"
+              id="slider-interval"
+              className="economy-range-slider"
+              min="0.1"
+              max="3.0"
+              step="0.1"
+              value={intervalSec}
+              onChange={(e) => handleSliderChange("interval_seconds", e.target.value)}
+            />
+            <div className="slider-limits">
+              <span>0.1s (Turbo)</span>
+              <span>3.0s (Spokojne)</span>
+            </div>
+          </div>
+
+          {/* Suwak 4: Dzienny cel puli */}
+          <div className="sidebar-control-group">
+            <div className="slider-header">
+              <label htmlFor="slider-pool-pct" className="slider-label">
+                Dzienny cel puli:
+              </label>
+              <span className="slider-val-badge" id="val-pool-pct">
+                {dailyPoolPct}%
+              </span>
+            </div>
+            <input
+              type="range"
+              id="slider-pool-pct"
+              className="economy-range-slider"
+              min="10"
+              max="90"
+              step="5"
+              value={dailyPoolPct}
+              onChange={(e) => handleSliderChange("daily_pool_pct", e.target.value)}
+            />
+            <div className="slider-limits">
+              <span>10% puli</span>
+              <span>90% puli</span>
+            </div>
+          </div>
+
+          {/* Przyciski operacyjne */}
+          <div className="sidebar-actions-group">
+            <button
+              type="button"
+              id="btn-toggle-engine"
+              className={`btn btn-sm ${isRunning ? "btn-warning-outline" : "btn-primary"} btn-full`}
+              onClick={handleToggleRunning}
+            >
+              {isRunning ? "⏸️ Wstrzymaj silnik" : "▶️ Wznów silnik"}
+            </button>
+
+            <div className="tick-force-row">
+              <button
+                type="button"
+                id="btn-force-tick-5"
+                className="btn btn-secondary btn-sm"
+                onClick={() => handleForceTick(5)}
+                title="Natychmiast wygeneruj +5 transakcji i wybij bloki"
+              >
+                🚀 +5 tx
+              </button>
+              <button
+                type="button"
+                id="btn-force-tick-25"
+                className="btn btn-secondary btn-sm"
+                onClick={() => handleForceTick(25)}
+                title="Natychmiast wygeneruj +25 transakcji i wybij bloki"
+              >
+                ⚡ Turbo +25
+              </button>
+            </div>
+
+            <button
+              type="button"
+              id="btn-reset-cycle"
+              className="btn btn-outline btn-sm btn-full"
+              onClick={handleResetCycle}
+              title="Resetuje obecny cykl z powrotem do Dnia 1 i odnawia pulę"
+            >
+              🔄 Resetuj cykl (Dzień 1)
+            </button>
+
+            <button
+              type="button"
+              id="btn-default-config"
+              className="btn btn-ghost btn-sm btn-full"
+              onClick={() => handleApplyPreset(1, 5, 1.0, 60)}
+            >
+              ⚙️ Przywróć domyślne (1–5 TPS)
+            </button>
+          </div>
+
+          {/* Mini telemetria w sidebarze */}
+          <div className="sidebar-telemetry">
+            <div className="telemetry-item">
+              <span>Łącznie transakcji:</span>
+              <strong>{stats?.simulator?.total_simulated_transactions ?? "—"}</strong>
+            </div>
+            <div className="telemetry-item">
+              <span>Ostatni tick:</span>
+              <strong>+{stats?.simulator?.last_tick_transactions ?? 0} tx</strong>
+            </div>
+            <div className="telemetry-item">
+              <span>Cykl / Dzień:</span>
+              <strong>#{stats?.simulator?.current_cycle ?? 1} / D{stats?.simulator?.current_day ?? 1}</strong>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* Główna zawartość statystyk */}
+      <div className="chlopchain-main-content global-stats-view">
+        {/* Nagłówek sekcji */}
+        <div className="global-stats-header">
         <div className="global-stats-title-group">
           <div className="global-stats-badge">
             <span className="chain-pulse-dot" aria-hidden="true" />
@@ -150,7 +539,9 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
             <div className="engine-title-group">
               <span className="engine-live-indicator" aria-hidden="true">
                 <span className="engine-live-pulse" />
-                <span className="engine-live-text">Ruch w sieci: 1–5 TPS</span>
+                <span className="engine-live-text">
+                  Ruch w sieci: {(stats.simulator.tps_range || "1-5 TPS").replace("-", "–")}
+                </span>
               </span>
               <h2 className="engine-card-title">Silnik Obrotu Gospodarczego Chłopchain</h2>
             </div>
@@ -160,13 +551,13 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
           </div>
 
           <p className="engine-card-desc">
-            Algorytm codziennie angażuje w pomoc <strong>60% aktywnej puli profili</strong> (1–5 transakcji na sekundę).
-            Kolejnego dnia obsługuje 60% z pozostałej puli, aż do jej pełnego wyczerpania i rozpoczęcia nowego cyklu.
+            Algorytm codziennie angażuje w pomoc <strong>{stats.simulator.daily_pool_pct || 60}% aktywnej puli profili</strong> ({stats.simulator.tps_range || "1–5 TPS"}).
+            Kolejnego dnia obsługuje {stats.simulator.daily_pool_pct || 60}% z pozostałej puli, aż do jej pełnego wyczerpania i rozpoczęcia nowego cyklu.
           </p>
 
           <div className="engine-progress-bar-wrap">
             <div className="engine-progress-labels">
-              <span>Dzisiejszy postęp pomocy (cel 60%):</span>
+              <span>Dzisiejszy postęp pomocy (cel {stats.simulator.daily_pool_pct || 60}%):</span>
               <strong>
                 {stats.simulator.daily_served_count} / {stats.simulator.daily_target_60_pct} profili ({stats.simulator.daily_progress_pct}%)
               </strong>
@@ -201,7 +592,11 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
             </div>
             <div className="engine-mini-stat">
               <span className="mini-label">Status węzła:</span>
-              <span className="mini-val status-online">Aktywny (1–5 transakcji/sek)</span>
+              <span className={`mini-val ${stats.simulator.is_running ? "status-online" : "status-paused"}`}>
+                {stats.simulator.is_running
+                  ? `Aktywny (${stats.simulator.tps_range || "1-5 TPS"})`
+                  : "Wstrzymany (pauza)"}
+              </span>
             </div>
           </div>
         </div>
@@ -697,6 +1092,7 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
           )}
         </section>
       )}
+      </div>
     </div>
   );
 }

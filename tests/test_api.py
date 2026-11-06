@@ -363,6 +363,53 @@ class BronetBackendTest(unittest.TestCase):
         status_after = economy_simulator.get_status()
         self.assertGreaterEqual(status_after["total_simulated_transactions"], 3)
 
+    def test_economy_engine_controls_and_sliders(self) -> None:
+        """
+        Weryfikuje dynamiczne suwaki i kontrolki ekonomii:
+        - Zmiana min_tps, max_tps, interval_seconds, daily_pool_pct
+        - Reset cyklu do Dnia 1
+        - Włączanie/wyłączanie pętli (toggle)
+        """
+        import asyncio
+        from app.economy_engine import economy_simulator
+
+        # 1. Zmiana parametrów suwakami
+        async def run_config():
+            return await economy_simulator.update_config(
+                min_tps=3,
+                max_tps=8,
+                interval_seconds=0.5,
+                daily_pool_pct=75,
+            )
+
+        updated = asyncio.run(run_config())
+        self.assertEqual(updated["min_tps"], 3)
+        self.assertEqual(updated["max_tps"], 8)
+        self.assertEqual(updated["interval_seconds"], 0.5)
+        self.assertEqual(updated["daily_pool_pct"], 75)
+        self.assertEqual(updated["tps_range"], "3-8 TPS")
+
+        # 2. Reset cyklu
+        res = economy_simulator.reset_cycle()
+        self.assertEqual(res["current_cycle"], 1)
+        self.assertEqual(res["current_day"], 1)
+        self.assertEqual(res["daily_served_count"], 0)
+
+        # 3. Przywrócenie domyślnych parametrów
+        async def run_reset_defaults():
+            return await economy_simulator.update_config(
+                min_tps=1,
+                max_tps=5,
+                interval_seconds=1.0,
+                daily_pool_pct=60,
+            )
+
+        defaults = asyncio.run(run_reset_defaults())
+        self.assertEqual(defaults["min_tps"], 1)
+        self.assertEqual(defaults["max_tps"], 5)
+        self.assertEqual(defaults["interval_seconds"], 1.0)
+        self.assertEqual(defaults["daily_pool_pct"], 60)
+
 
 if __name__ == "__main__":
     unittest.main()

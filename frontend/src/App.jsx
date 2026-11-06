@@ -343,7 +343,15 @@ export function App() {
         onToggleCompactView={handleToggleCompactView}
       />
 
-      <main className="container" id="app-root" tabIndex={-1}>
+      <main
+        className={`container ${
+          route.view === "chlopchain" || route.view === "stats"
+            ? "container-wide"
+            : ""
+        }`}
+        id="app-root"
+        tabIndex={-1}
+      >
         {route.view === "home" && (
           <HomeView
             searchQuery={searchQuery}

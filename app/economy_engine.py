@@ -30,6 +30,10 @@ class ChlopchainEconomySimulator:
     def __init__(self) -> None:
         self._is_running: bool = False
         self._task: Optional[asyncio.Task] = None
+        self._min_tps: int = 1
+        self._max_tps: int = 5
+        self._interval_seconds: float = 1.0
+        self._daily_pool_pct: int = 60
         self._last_tick_time: Optional[str] = None
         self._last_tick_count: int = 0
         self._total_simulated: int = 0
@@ -46,6 +50,27 @@ class ChlopchainEconomySimulator:
         cycle = int(data.get("cycle_number", 1))
         day = int(data.get("day_in_cycle", 1))
         total_tx = int(data.get("total_simulated_transactions", 0))
+
+        if "config_min_tps" in data:
+            try:
+                self._min_tps = max(1, int(data["config_min_tps"]))
+            except Exception:
+                pass
+        if "config_max_tps" in data:
+            try:
+                self._max_tps = max(self._min_tps, int(data["config_max_tps"]))
+            except Exception:
+                pass
+        if "config_interval_seconds" in data:
+            try:
+                self._interval_seconds = max(0.05, float(data["config_interval_seconds"]))
+            except Exception:
+                pass
+        if "config_daily_pool_pct" in data:
+            try:
+                self._daily_pool_pct = max(5, min(95, int(data["config_daily_pool_pct"])))
+            except Exception:
+                pass
 
         try:
             served_cycle = set(json.loads(data.get("served_in_cycle_ids", "[]")))
@@ -65,6 +90,23 @@ class ChlopchainEconomySimulator:
             "total_simulated_transactions": total_tx,
         }
 
+    def _save_config(self, conn) -> None:
+        state_records = [
+            ("config_min_tps", str(self._min_tps)),
+            ("config_max_tps", str(self._max_tps)),
+            ("config_interval_seconds", str(self._interval_seconds)),
+            ("config_daily_pool_pct", str(self._daily_pool_pct)),
+            ("config_is_running", "true" if self._is_running else "false"),
+        ]
+        conn.executemany(
+            """
+            INSERT INTO economy_simulator_state (key, value)
+            VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """,
+            state_records,
+        )
+
     def _save_state(
         self,
         conn,
@@ -80,6 +122,11 @@ class ChlopchainEconomySimulator:
             ("served_in_cycle_ids", json.dumps(list(served_in_cycle))),
             ("served_today_ids", json.dumps(list(served_today))),
             ("total_simulated_transactions", str(total_tx)),
+            ("config_min_tps", str(self._min_tps)),
+            ("config_max_tps", str(self._max_tps)),
+            ("config_interval_seconds", str(self._interval_seconds)),
+            ("config_daily_pool_pct", str(self._daily_pool_pct)),
+            ("config_is_running", "true" if self._is_running else "false"),
         ]
         conn.executemany(
             """
@@ -92,11 +139,13 @@ class ChlopchainEconomySimulator:
 
     def tick(self, custom_count: Optional[int] = None) -> Dict[str, Any]:
         """
-        Pojedynczy cykl (1 sekunda) silnika ekonomicznego:
-        Wybiera losowo 1-5 transakcji i realizuje wzajemną pomoc między profilami.
+        Pojedynczy cykl silnika ekonomicznego:
+        Wybiera losowo transakcje (1-5 lub skonfigurowany zakres TPS) i realizuje wzajemną pomoc między profilami.
         """
+        low = min(self._min_tps, self._max_tps)
+        high = max(self._min_tps, self._max_tps)
         num_transactions = (
-            custom_count if custom_count is not None else random.randint(1, 5)
+            custom_count if custom_count is not None else random.randint(low, high)
         )
         conn = get_connection()
         minted_blocks: List[Dict[str, Any]] = []
@@ -134,12 +183,13 @@ class ChlopchainEconomySimulator:
                     served_today = set()
                     unserved = list(all_ids)
 
-                # Cel na dany dzień: 60% z aktualnie pozostałej puli
-                daily_target = max(2, int(round(len(unserved) * 0.60)))
+                # Cel na dany dzień: daily_pool_pct (domyślnie 60%) z aktualnie pozostałej puli
+                target_ratio = max(0.05, min(0.95, self._daily_pool_pct / 100.0))
+                daily_target = max(2, int(round(len(unserved) * target_ratio)))
 
-                # 3. Wykonaj zaplanowane transakcje (1-5 na sekundę)
+                # 3. Wykonaj zaplanowane transakcje
                 for _ in range(num_transactions):
-                    # Sprawdź, czy dzisiejsza pula 60% została zrealizowana
+                    # Sprawdź, czy dzisiejsza pula została zrealizowana
                     if len(served_today) >= daily_target:
                         day_num += 1
                         served_today = set()
@@ -151,7 +201,7 @@ class ChlopchainEconomySimulator:
                             day_num = 1
                             served_in_cycle = set()
                             unserved = list(all_ids)
-                        daily_target = max(2, int(round(len(unserved) * 0.60)))
+                        daily_target = max(2, int(round(len(unserved) * target_ratio)))
 
                     if not unserved:
                         break
@@ -302,6 +352,8 @@ class ChlopchainEconomySimulator:
                 "day_in_cycle": day_num,
                 "served_today_count": len(served_today),
                 "daily_target_60_pct": daily_target,
+                "daily_target": daily_target,
+                "daily_pool_pct": self._daily_pool_pct,
                 "remaining_pool_count": len(unserved),
                 "minted_blocks": minted_blocks,
             }
@@ -313,7 +365,7 @@ class ChlopchainEconomySimulator:
             conn.close()
 
     def get_status(self) -> Dict[str, Any]:
-        """Zwraca bieżący stan silnika symulacji gospodarki Chłopocoinów."""
+        """Zwraca bieżący stan i parametry konfiguracyjne silnika symulacji gospodarki Chłopocoinów."""
         conn = get_connection()
         try:
             all_ids_cnt = conn.execute(
@@ -328,7 +380,8 @@ class ChlopchainEconomySimulator:
             total_tx = state["total_simulated_transactions"]
 
             unserved_cnt = max(0, all_ids_cnt - served_in_cycle_cnt)
-            daily_target = max(2, int(round(unserved_cnt * 0.60)))
+            target_ratio = max(0.05, min(0.95, self._daily_pool_pct / 100.0))
+            daily_target = max(2, int(round(unserved_cnt * target_ratio)))
             progress_pct = (
                 min(100.0, round((served_today_cnt / max(1, daily_target)) * 100, 1))
                 if daily_target > 0
@@ -337,11 +390,16 @@ class ChlopchainEconomySimulator:
 
             return {
                 "is_running": self._is_running,
-                "tps_range": "1-5 TPS",
+                "min_tps": self._min_tps,
+                "max_tps": self._max_tps,
+                "interval_seconds": self._interval_seconds,
+                "daily_pool_pct": self._daily_pool_pct,
+                "tps_range": f"{self._min_tps}-{self._max_tps} TPS",
                 "current_cycle": cycle_num,
                 "current_day": day_num,
                 "daily_pool_initial": unserved_cnt + served_today_cnt,
                 "daily_target_60_pct": daily_target,
+                "daily_target": daily_target,
                 "daily_served_count": served_today_cnt,
                 "daily_progress_pct": progress_pct,
                 "remaining_pool_count": unserved_cnt,
@@ -353,25 +411,99 @@ class ChlopchainEconomySimulator:
         finally:
             conn.close()
 
+    async def update_config(
+        self,
+        min_tps: Optional[int] = None,
+        max_tps: Optional[int] = None,
+        interval_seconds: Optional[float] = None,
+        daily_pool_pct: Optional[int] = None,
+        is_running: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        """Aktualizuje parametry pracy silnika ekonomii i trwale zapisuje je w bazie danych."""
+        if min_tps is not None:
+            self._min_tps = max(1, min(100, int(min_tps)))
+        if max_tps is not None:
+            self._max_tps = max(self._min_tps, min(200, int(max_tps)))
+        if interval_seconds is not None:
+            self._interval_seconds = max(0.05, min(10.0, float(interval_seconds)))
+        if daily_pool_pct is not None:
+            self._daily_pool_pct = max(5, min(95, int(daily_pool_pct)))
+
+        if is_running is not None:
+            if is_running and not self._is_running:
+                await self.start()
+            elif not is_running and self._is_running:
+                self.stop()
+
+        conn = get_connection()
+        try:
+            with conn:
+                self._save_config(conn)
+        finally:
+            conn.close()
+
+        return self.get_status()
+
+    def reset_cycle(self) -> Dict[str, Any]:
+        """Resetuje stan cyklu symulatora ekonomii do Dnia 1 i czyści listy obsłużonych."""
+        conn = get_connection()
+        try:
+            with conn:
+                state_records = [
+                    ("cycle_number", "1"),
+                    ("day_in_cycle", "1"),
+                    ("served_in_cycle_ids", "[]"),
+                    ("served_today_ids", "[]"),
+                ]
+                conn.executemany(
+                    """
+                    INSERT INTO economy_simulator_state (key, value)
+                    VALUES (?, ?)
+                    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                    """,
+                    state_records,
+                )
+            return self.get_status()
+        finally:
+            conn.close()
+
+    async def toggle_running(self) -> Dict[str, Any]:
+        """Włącza lub zatrzymuje pętlę symulatora."""
+        if self._is_running:
+            self.stop()
+        else:
+            await self.start()
+
+        conn = get_connection()
+        try:
+            with conn:
+                self._save_config(conn)
+        finally:
+            conn.close()
+
+        return self.get_status()
+
     async def _run_loop(self) -> None:
-        """Pętla asynchroniczna pracująca w tle — generuje 1-5 transakcji na sekundę."""
+        """Pętla asynchroniczna pracująca w tle — generuje transakcje zgodnie z konfiguracją."""
         logger.info("Chłopchain Economy Simulator wystartował pomyślnie.")
         while self._is_running:
             try:
-                # Losowy interwał ok. 1 sekundy (0.8s - 1.2s)
-                sleep_duration = random.uniform(0.8, 1.2)
+                base_interval = max(0.05, self._interval_seconds)
+                sleep_min = max(0.05, base_interval * 0.8)
+                sleep_max = max(sleep_min, base_interval * 1.2)
+                sleep_duration = random.uniform(sleep_min, sleep_max)
                 await asyncio.sleep(sleep_duration)
 
                 if not self._is_running:
                     break
 
-                # Wykonaj 1-5 transakcji w wątku roboczym
+                # Wykonaj transakcje w wątku roboczym
                 await asyncio.to_thread(self.tick)
             except asyncio.CancelledError:
                 break
             except Exception as err:
                 logger.error("Błąd w pętli symulatora ekonomii: %s", err)
-                await asyncio.sleep(2.0)
+                await asyncio.sleep(1.0)
 
         logger.info("Chłopchain Economy Simulator został zatrzymany.")
 
@@ -380,6 +512,11 @@ class ChlopchainEconomySimulator:
         async with self._lock:
             if self._is_running:
                 return
+            conn = get_connection()
+            try:
+                self._load_state(conn)
+            finally:
+                conn.close()
             self._is_running = True
             self._task = asyncio.create_task(self._run_loop())
 

@@ -31,6 +31,7 @@ from app.models import (
     LoginPayload,
     ProfilePayload,
     ProfileResponse,
+    SimulatorConfigPayload,
 )
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -220,6 +221,27 @@ def api_simulator_status() -> dict:
 @app.post("/api/chlopocoin/simulator/tick")
 def api_simulator_tick(count: Optional[int] = Query(None, ge=1, le=50)) -> dict:
     return economy_simulator.tick(custom_count=count)
+
+
+@app.post("/api/chlopocoin/simulator/config")
+async def api_simulator_config(payload: SimulatorConfigPayload) -> dict:
+    return await economy_simulator.update_config(
+        min_tps=payload.min_tps,
+        max_tps=payload.max_tps,
+        interval_seconds=payload.interval_seconds,
+        daily_pool_pct=payload.daily_pool_pct,
+        is_running=payload.is_running,
+    )
+
+
+@app.post("/api/chlopocoin/simulator/reset-cycle")
+def api_simulator_reset_cycle() -> dict:
+    return economy_simulator.reset_cycle()
+
+
+@app.post("/api/chlopocoin/simulator/toggle")
+async def api_simulator_toggle() -> dict:
+    return await economy_simulator.toggle_running()
 
 
 @app.get("/api/chlopocoin/rankings")
