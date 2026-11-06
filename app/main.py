@@ -1,8 +1,11 @@
+import os
 from pathlib import Path
 from typing import List, Optional
 from fastapi import Body, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+
+from app.economy_engine import economy_simulator
 
 from app.database import (
     ProfileAuthError,
@@ -52,8 +55,17 @@ async def revalidate_static_and_spa(request: Request, call_next):
 
 
 @app.on_event("startup")
-def on_startup() -> None:
+async def on_startup() -> None:
     init_db(seed=True)
+    sim_enabled = os.environ.get("CHLOPCOIN_SIMULATOR_ENABLED", "true").lower() in ("1", "true", "yes")
+    test_db = os.environ.get("BRONET_DB_PATH", "")
+    if sim_enabled and "test" not in test_db.lower():
+        await economy_simulator.start()
+
+
+@app.on_event("shutdown")
+def on_shutdown() -> None:
+    economy_simulator.stop()
 
 
 @app.get("/api/health")
@@ -186,7 +198,19 @@ def api_chlopocoin_stats(profile_id: int) -> dict:
 
 @app.get("/api/chlopocoin/global-stats")
 def api_global_chlopocoin_stats() -> dict:
-    return get_global_chlopocoin_stats()
+    stats = get_global_chlopocoin_stats()
+    stats["simulator"] = economy_simulator.get_status()
+    return stats
+
+
+@app.get("/api/chlopocoin/simulator/status")
+def api_simulator_status() -> dict:
+    return economy_simulator.get_status()
+
+
+@app.post("/api/chlopocoin/simulator/tick")
+def api_simulator_tick(count: Optional[int] = Query(None, ge=1, le=50)) -> dict:
+    return economy_simulator.tick(custom_count=count)
 
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

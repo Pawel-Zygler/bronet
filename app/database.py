@@ -36,6 +36,10 @@ class ProfileValidationError(Exception):
     """Raised when profile data violates platform rules (e.g. non-male name in men-only platform)."""
 
 
+# Globalny zamek wątkowy chroniący operacje wybijania bloków Chłopchaina
+BLOCKCHAIN_LOCK = threading.Lock()
+
+
 # Męskie wyjątki imion kończących się na literę 'a'
 MALE_EXCEPTIONS_ENDING_IN_A = {
     "kuba", "barnaba", "kosma", "bonawentura", "jarema", "zawisza",
@@ -351,8 +355,10 @@ def init_db(seed: bool = True) -> None:
             CREATE TABLE IF NOT EXISTS chlopocoin_blocks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 block_index INTEGER NOT NULL,
-                profile_a_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-                profile_b_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                profile_a_id INTEGER NOT NULL,
+                profile_b_id INTEGER NOT NULL,
+                profile_a_name TEXT NOT NULL DEFAULT '',
+                profile_b_name TEXT NOT NULL DEFAULT '',
                 block_hash TEXT NOT NULL UNIQUE,
                 prev_hash TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL,
@@ -367,8 +373,70 @@ def init_db(seed: bool = True) -> None:
                 ON chlopocoin_blocks(block_index);
             CREATE INDEX IF NOT EXISTS idx_profiles_chlopocoin
                 ON profiles(chlopocoin_balance);
+
+            CREATE TABLE IF NOT EXISTS economy_simulator_state (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
             """
         )
+
+        # Migracja tabeli chlopocoin_blocks (usunięcie ON DELETE CASCADE dla niezmienności księgi bloków oraz dodanie kolumn nazw)
+        col_names = [r["name"] for r in conn.execute("PRAGMA table_info(chlopocoin_blocks)").fetchall()]
+        fk_list = conn.execute("PRAGMA foreign_key_list(chlopocoin_blocks)").fetchall()
+        has_cascade = any(r[2] == "profiles" and r[6] == "CASCADE" for r in fk_list)
+        if has_cascade or "profile_a_name" not in col_names:
+            conn.execute("PRAGMA foreign_keys = OFF;")
+            conn.execute("ALTER TABLE chlopocoin_blocks RENAME TO chlopocoin_blocks_old;")
+            conn.execute("""
+                CREATE TABLE chlopocoin_blocks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    block_index INTEGER NOT NULL,
+                    profile_a_id INTEGER NOT NULL,
+                    profile_b_id INTEGER NOT NULL,
+                    profile_a_name TEXT NOT NULL DEFAULT '',
+                    profile_b_name TEXT NOT NULL DEFAULT '',
+                    block_hash TEXT NOT NULL UNIQUE,
+                    prev_hash TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    UNIQUE(profile_a_id, profile_b_id)
+                );
+            """)
+            conn.execute("""
+                INSERT INTO chlopocoin_blocks (id, block_index, profile_a_id, profile_b_id, block_hash, prev_hash, created_at)
+                SELECT id, block_index, profile_a_id, profile_b_id, block_hash, prev_hash, created_at
+                FROM chlopocoin_blocks_old;
+            """)
+            conn.execute("DROP TABLE chlopocoin_blocks_old;")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_chlopocoin_blocks_profiles ON chlopocoin_blocks(profile_a_id, profile_b_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_chlopocoin_blocks_index ON chlopocoin_blocks(block_index);")
+            conn.execute("PRAGMA foreign_keys = ON;")
+
+        # Uzupełnij nazwy uczestników w blokach, jeśli nie są ustawione
+        conn.execute("""
+            UPDATE chlopocoin_blocks
+            SET profile_a_name = COALESCE((SELECT name FROM profiles WHERE profiles.id = chlopocoin_blocks.profile_a_id), profile_a_name, 'Chłop'),
+                profile_b_name = COALESCE((SELECT name FROM profiles WHERE profiles.id = chlopocoin_blocks.profile_b_id), profile_b_name, 'Chłop')
+            WHERE profile_a_name = '' OR profile_b_name = ''
+        """)
+
+        # Weryfikacja i zapewnienie 100% kryptograficznej ciągłości łańcucha bloków
+        all_blocks = conn.execute("SELECT id, profile_a_id, profile_b_id, created_at FROM chlopocoin_blocks ORDER BY id ASC").fetchall()
+        if all_blocks:
+            prev_hash = "0" * 64
+            for idx, b in enumerate(all_blocks, start=1):
+                p1 = min(b["profile_a_id"], b["profile_b_id"])
+                p2 = max(b["profile_a_id"], b["profile_b_id"])
+                ts = b["created_at"]
+                payload = f"{idx}:{prev_hash}:{p1}:{p2}:{ts}:proof_of_chlop_help"
+                b_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+                row = conn.execute("SELECT block_index, block_hash, prev_hash FROM chlopocoin_blocks WHERE id = ?", (b["id"],)).fetchone()
+                if row["block_index"] != idx or row["block_hash"] != b_hash or row["prev_hash"] != prev_hash:
+                    conn.execute(
+                        "UPDATE chlopocoin_blocks SET block_index = ?, block_hash = ?, prev_hash = ? WHERE id = ?",
+                        (idx, b_hash, prev_hash, b["id"])
+                    )
+                prev_hash = b_hash
 
         # Usunięcie starych profili żeńskich, jeśli istnieją w trwałej bazie (men only)
         rows = conn.execute("SELECT id, name, email FROM profiles").fetchall()
@@ -648,6 +716,17 @@ def invalidate_profiles_cache() -> None:
     global _PROFILES_CACHE
     with _CACHE_LOCK:
         _PROFILES_CACHE = None
+
+
+def update_cached_balances(p_ids: List[int]) -> None:
+    """Aktualizuje saldo w pamięci podręcznej dla podanych ID profili bez kosztownego re-hydrowania 3000 profili."""
+    global _PROFILES_CACHE
+    with _CACHE_LOCK:
+        if _PROFILES_CACHE is not None:
+            id_set = set(p_ids)
+            for p in _PROFILES_CACHE:
+                if p["id"] in id_set:
+                    p["chlopocoin_balance"] = p.get("chlopocoin_balance", 0) + 1
 
 
 def _get_cached_profiles() -> List[Dict[str, Any]]:
@@ -1049,28 +1128,35 @@ def confirm_chlop_help(
         ).fetchone()
 
         if other_confirmed:
-            # KONSENSUS 2/2 OSIĄGNIĘTY -> Mint nowego bloku w Chłopchainie!
-            last_block = conn.execute(
-                "SELECT block_index, block_hash FROM chlopocoin_blocks ORDER BY id DESC LIMIT 1"
-            ).fetchone()
-            prev_hash = last_block["block_hash"] if last_block else "0" * 64
-            block_index = (last_block["block_index"] + 1) if last_block else 1
-            payload = f"{block_index}:{prev_hash}:{p1}:{p2}:{now}:proof_of_chlop_help"
-            block_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+            with BLOCKCHAIN_LOCK:
+                # KONSENSUS 2/2 OSIĄGNIĘTY -> Mint nowego bloku w Chłopchainie!
+                last_block = conn.execute(
+                    "SELECT block_index, block_hash FROM chlopocoin_blocks ORDER BY block_index DESC LIMIT 1"
+                ).fetchone()
+                prev_hash = last_block["block_hash"] if last_block else "0" * 64
+                block_index = (last_block["block_index"] + 1) if last_block else 1
+                payload = f"{block_index}:{prev_hash}:{p1}:{p2}:{now}:proof_of_chlop_help"
+                block_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
-            conn.execute(
-                """
-                INSERT INTO chlopocoin_blocks (block_index, profile_a_id, profile_b_id, block_hash, prev_hash, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (block_index, p1, p2, block_hash, prev_hash, now),
-            )
+                # Pobierz nazwy obu chłopów
+                r1 = conn.execute("SELECT name FROM profiles WHERE id = ?", (p1,)).fetchone()
+                r2 = conn.execute("SELECT name FROM profiles WHERE id = ?", (p2,)).fetchone()
+                p1_name = r1["name"] if r1 else f"Chłop #{p1}"
+                p2_name = r2["name"] if r2 else f"Chłop #{p2}"
 
-            # Dodaj po 1 Chłopocoinie dla obu profili
-            conn.execute(
-                "UPDATE profiles SET chlopocoin_balance = chlopocoin_balance + 1 WHERE id IN (?, ?)",
-                (p1, p2),
-            )
+                conn.execute(
+                    """
+                    INSERT INTO chlopocoin_blocks (block_index, profile_a_id, profile_b_id, profile_a_name, profile_b_name, block_hash, prev_hash, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (block_index, p1, p2, p1_name, p2_name, block_hash, prev_hash, now),
+                )
+
+                # Dodaj po 1 Chłopocoinie dla obu profili
+                conn.execute(
+                    "UPDATE profiles SET chlopocoin_balance = chlopocoin_balance + 1 WHERE id IN (?, ?)",
+                    (p1, p2),
+                )
 
             invalidate_profiles_cache()
             balance_row = conn.execute(
@@ -1137,10 +1223,11 @@ def get_chlopocoin_stats(profile_id: int) -> Dict[str, Any]:
             """
             SELECT b.id, b.block_index, b.block_hash, b.prev_hash, b.created_at,
                    b.profile_a_id, b.profile_b_id,
-                   pa.name as profile_a_name, pb.name as profile_b_name
+                   COALESCE(pa.name, NULLIF(b.profile_a_name, ''), 'Chłop #' || b.profile_a_id) as profile_a_name,
+                   COALESCE(pb.name, NULLIF(b.profile_b_name, ''), 'Chłop #' || b.profile_b_id) as profile_b_name
             FROM chlopocoin_blocks b
-            JOIN profiles pa ON pa.id = b.profile_a_id
-            JOIN profiles pb ON pb.id = b.profile_b_id
+            LEFT JOIN profiles pa ON pa.id = b.profile_a_id
+            LEFT JOIN profiles pb ON pb.id = b.profile_b_id
             WHERE b.profile_a_id = ? OR b.profile_b_id = ?
             ORDER BY b.block_index DESC
             """,
@@ -1327,11 +1414,13 @@ def get_global_chlopocoin_stats() -> Dict[str, Any]:
             """
             SELECT b.id, b.block_index, b.block_hash, b.prev_hash, b.created_at,
                    b.profile_a_id, b.profile_b_id,
-                   pa.name as profile_a_name, pa.location_name as profile_a_location,
-                   pb.name as profile_b_name, pb.location_name as profile_b_location
+                   COALESCE(pa.name, NULLIF(b.profile_a_name, ''), 'Chłop #' || b.profile_a_id) as profile_a_name,
+                   COALESCE(pa.location_name, 'Polska') as profile_a_location,
+                   COALESCE(pb.name, NULLIF(b.profile_b_name, ''), 'Chłop #' || b.profile_b_id) as profile_b_name,
+                   COALESCE(pb.location_name, 'Polska') as profile_b_location
             FROM chlopocoin_blocks b
-            JOIN profiles pa ON pa.id = b.profile_a_id
-            JOIN profiles pb ON pb.id = b.profile_b_id
+            LEFT JOIN profiles pa ON pa.id = b.profile_a_id
+            LEFT JOIN profiles pb ON pb.id = b.profile_b_id
             ORDER BY b.block_index DESC
             LIMIT 100
             """

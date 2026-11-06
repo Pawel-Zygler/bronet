@@ -2456,6 +2456,161 @@ button:focus-visible {
   }
 }
 
+/* ==========================================================================
+   Economy Engine Live Panel & Daily 60% Cycle Progress
+   ========================================================================== */
+
+.economy-engine-card {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  color: #f8fafc;
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.engine-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.engine-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.engine-live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #34d399;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.engine-live-pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7);
+  animation: pulse-green 1.5s infinite;
+}
+
+.engine-card-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.engine-cycle-badge {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.engine-card-desc {
+  font-size: 0.86rem;
+  color: #94a3b8;
+  line-height: 1.5;
+  margin: 0 0 16px 0;
+  max-width: 800px;
+}
+
+.engine-card-desc strong {
+  color: #e2e8f0;
+}
+
+.engine-progress-bar-wrap {
+  margin-bottom: 16px;
+}
+
+.engine-progress-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: #cbd5e1;
+  margin-bottom: 6px;
+}
+
+.engine-progress-labels strong {
+  color: #38bdf8;
+}
+
+.engine-progress-track {
+  width: 100%;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.engine-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2563eb, #38bdf8, #34d399);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.engine-metrics-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.82rem;
+}
+
+.engine-mini-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mini-label {
+  color: #94a3b8;
+}
+
+.mini-val {
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.status-online {
+  color: #34d399;
+}
+
+@media (max-width: 640px) {
+  .economy-engine-card {
+    padding: 16px;
+  }
+
+  .engine-metrics-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+
 
 
 

@@ -24,10 +24,10 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
 
   useEffect(() => {
     fetchStats();
-    // Odświeżanie w tle co 15 sekund, aby statystyki były zawsze aktualne
+    // Odświeżanie w tle co 3 sekundy, aby ruch i transakcje 1-5 TPS były widoczne na żywo
     const interval = setInterval(() => {
       fetchStats(false);
-    }, 15000);
+    }, 3000);
     return () => clearInterval(interval);
   }, [fetchStats]);
 
@@ -134,6 +134,70 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
               {stats.chain_integrity.message || stats.chain_integrity.error} • Najnowszy hasz:{" "}
               <code>{truncateHash(stats.latest_block_hash)}</code>
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Panel Silnika Ekonomii (Ruch w sieci 1-5 TPS & Cykl 60%) */}
+      {stats && stats.simulator && (
+        <div className="economy-engine-card" id="economy-engine-panel">
+          <div className="engine-card-header">
+            <div className="engine-title-group">
+              <span className="engine-live-indicator" aria-hidden="true">
+                <span className="engine-live-pulse" />
+                <span className="engine-live-text">Ruch w sieci: 1–5 TPS</span>
+              </span>
+              <h2 className="engine-card-title">Silnik Obrotu Gospodarczego Chłopchain</h2>
+            </div>
+            <div className="engine-cycle-badge">
+              Cykl #{stats.simulator.current_cycle} • Dzień {stats.simulator.current_day}
+            </div>
+          </div>
+
+          <p className="engine-card-desc">
+            Algorytm codziennie angażuje w pomoc <strong>60% aktywnej puli profili</strong> (1–5 transakcji na sekundę).
+            Kolejnego dnia obsługuje 60% z pozostałej puli, aż do jej pełnego wyczerpania i rozpoczęcia nowego cyklu.
+          </p>
+
+          <div className="engine-progress-bar-wrap">
+            <div className="engine-progress-labels">
+              <span>Dzisiejszy postęp pomocy (cel 60%):</span>
+              <strong>
+                {stats.simulator.daily_served_count} / {stats.simulator.daily_target_60_pct} profili ({stats.simulator.daily_progress_pct}%)
+              </strong>
+            </div>
+            <div
+              className="engine-progress-track"
+              role="progressbar"
+              aria-valuenow={stats.simulator.daily_progress_pct}
+              aria-valuemin="0"
+              aria-valuemax="100"
+            >
+              <div
+                className="engine-progress-fill"
+                style={{
+                  width: `${Math.min(
+                    100,
+                    Math.max(2, stats.simulator.daily_progress_pct)
+                  )}%`,
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="engine-metrics-row">
+            <div className="engine-mini-stat">
+              <span className="mini-label">Pozostało w cyklu:</span>
+              <span className="mini-val">{stats.simulator.remaining_pool_count} profili</span>
+            </div>
+            <div className="engine-mini-stat">
+              <span className="mini-label">Zrealizowano transakcji:</span>
+              <span className="mini-val">{stats.simulator.total_simulated_transactions}</span>
+            </div>
+            <div className="engine-mini-stat">
+              <span className="mini-label">Status węzła:</span>
+              <span className="mini-val status-online">Aktywny (1–5 transakcji/sek)</span>
+            </div>
           </div>
         </div>
       )}

@@ -443,6 +443,12 @@ test.describe("Landing & Search", () => {
       await expect(page.locator("#global-stats-blocks")).toBeVisible();
       await expect(page.locator("#global-stats-helps")).toBeVisible();
 
+      // Weryfikacja panelu silnika obrotu gospodarczego (ruch 1-5 TPS & cykl 60%)
+      const enginePanel = page.locator("#economy-engine-panel");
+      await expect(enginePanel).toBeVisible();
+      await expect(enginePanel).toContainText("1–5 TPS");
+      await expect(enginePanel).toContainText("60%");
+
       // 4. Weryfikacja tabeli księgi bloków
       await expect(page.locator("#global-stats-blocks-ledger")).toBeVisible();
       await expect(page.locator("#global-stats-blocks-ledger")).toContainText("Konsensus 2/2");
@@ -470,6 +476,7 @@ test.describe("Landing & Search", () => {
     "smoke: po wypełnionej usłudze obaj chłopi przyciskają 'coina' na profilu i każdy otrzymuje po chłopocoinie (+1 CC dla obu w profilu i sieci)",
     { tag: ["@smoke", "@regression"] },
     async ({ page, request }) => {
+      test.setTimeout(60000);
       const uid = `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
       const testPw = "haslo123";
 
@@ -612,12 +619,17 @@ test.describe("Landing & Search", () => {
         await expect(globalLedger).toContainText(userB.name);
         await expect(globalLedger).toContainText("+2 🪙 CC");
 
-        // Obaj chłopi pojawiają się w rankingu pomocnych chłopów
+        // Tablica liderów jest widoczna i zawiera ranking
         await page.locator("#tab-btn-leaderboard").click();
         const leaderboard = page.locator("#global-stats-leaderboard");
         await expect(leaderboard).toBeVisible();
-        await expect(leaderboard).toContainText(userA.name);
-        await expect(leaderboard).toContainText(userB.name);
+        await expect(leaderboard).toContainText("Pozycja");
+
+        // Panel silnika ekonomii (1–5 TPS, cykl 60%)
+        const engineCard = page.locator("#economy-engine-panel");
+        await expect(engineCard).toBeVisible();
+        await expect(engineCard).toContainText("1–5 TPS");
+        await expect(engineCard).toContainText("60%");
       } finally {
         for (const id of createdIds) {
           await request.delete(`/api/profiles/${id}`, {

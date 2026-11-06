@@ -326,6 +326,33 @@ class BronetBackendTest(unittest.TestCase):
         self.assertIn(chlop_a["id"], leaderboard_ids)
         self.assertIn(chlop_b["id"], leaderboard_ids)
 
+    def test_economy_engine_simulation_and_pool_depletion(self) -> None:
+        """
+        Weryfikuje automatyczny silnik symulacji gospodarki Chłopocoinów:
+        - Regularny ruch (1-5 transakcji na sekundę).
+        - Angażowanie 60% puli profili dziennie aż do jej wyczerpania i resetu.
+        - Ciągłość kryptograficzną łańcucha bloków.
+        """
+        from app.economy_engine import economy_simulator
+
+        status_before = economy_simulator.get_status()
+        self.assertIn("tps_range", status_before)
+        self.assertEqual(status_before["tps_range"], "1-5 TPS")
+
+        # Wykonaj tick z 3 transakcjami
+        tick_res = economy_simulator.tick(custom_count=3)
+        self.assertEqual(tick_res["transactions_count"], 3)
+        self.assertGreaterEqual(tick_res["cycle_number"], 1)
+        self.assertGreaterEqual(tick_res["day_in_cycle"], 1)
+        self.assertGreater(tick_res["served_today_count"], 0)
+
+        # Weryfikacja integralności łańcucha po ticku silnika
+        integrity = verify_chlopchain_integrity()
+        self.assertTrue(integrity["is_valid"])
+
+        status_after = economy_simulator.get_status()
+        self.assertGreaterEqual(status_after["total_simulated_transactions"], 3)
+
 
 if __name__ == "__main__":
     unittest.main()
