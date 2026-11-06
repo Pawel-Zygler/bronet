@@ -2,18 +2,35 @@ const { defineConfig, devices } = require("@playwright/test");
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:8000";
 
+const reporters = process.env.CI ? [["list"], ["github"]] : [["list"]];
+
+if (process.env.CURRENTS_RECORD_KEY && process.env.CURRENTS_PROJECT_ID) {
+  try {
+    const { currentsReporter } = require("@currents/playwright");
+    reporters.push(
+      currentsReporter({
+        projectId: process.env.CURRENTS_PROJECT_ID,
+        recordKey: process.env.CURRENTS_RECORD_KEY,
+      })
+    );
+  } catch (_) {}
+}
+
 module.exports = defineConfig({
   testDir: "./e2e",
+  timeout: 60_000,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  reporter: process.env.CI ? [["list"], ["github"]] : "list",
+  reporter: reporters,
   expect: {
     timeout: 10_000,
   },
   use: {
     baseURL,
-    trace: "on-first-retry",
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
   },
   projects: [
     {

@@ -14,6 +14,7 @@ from app.database import (
     confirm_chlop_help,
     create_profile,
     delete_profile,
+    get_chlopocoin_rankings,
     get_chlopocoin_stats,
     get_chlopocoin_status,
     get_global_chlopocoin_stats,
@@ -325,6 +326,15 @@ class BronetBackendTest(unittest.TestCase):
         leaderboard_ids = [p["id"] for p in global_stats["leaderboard"]]
         self.assertIn(chlop_a["id"], leaderboard_ids)
         self.assertIn(chlop_b["id"], leaderboard_ids)
+
+        # 8. Weryfikacja dedykowanej metody rankingów dla zakładki 'Rankingi'
+        rankings = get_chlopocoin_rankings()
+        self.assertGreaterEqual(rankings["total_coins_minted"], 2)
+        self.assertGreaterEqual(rankings["total_holders_count"], 2)
+        r_ids = [p["id"] for p in rankings["leaderboard"]]
+        self.assertIn(chlop_a["id"], r_ids)
+        self.assertIn(chlop_b["id"], r_ids)
+        self.assertGreaterEqual(len(rankings["top_three"]), 2)
 
     def test_economy_engine_simulation_and_pool_depletion(self) -> None:
         """

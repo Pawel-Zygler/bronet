@@ -1461,3 +1461,62 @@ def get_global_chlopocoin_stats() -> Dict[str, Any]:
             "mempool": [dict(m) for m in mempool_rows],
             "blocks": blocks,
         }
+
+
+def get_chlopocoin_rankings(query: str = "", limit: int = 100) -> Dict[str, Any]:
+    """Zwraca dane do dedykowanej zakładki 'Rankingi': liderzy Chłopocoinów, podium i filtry."""
+    with get_db() as conn:
+        supply_row = conn.execute(
+            "SELECT COALESCE(SUM(chlopocoin_balance), 0) AS total_supply FROM profiles"
+        ).fetchone()
+        total_supply = int(supply_row["total_supply"]) if supply_row else 0
+
+        holders_row = conn.execute(
+            "SELECT COUNT(*) AS cnt FROM profiles WHERE chlopocoin_balance > 0"
+        ).fetchone()
+        holders_count = int(holders_row["cnt"]) if holders_row else 0
+
+        fetch_limit = max(limit * 3, 200)
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM profiles
+            WHERE chlopocoin_balance > 0
+            ORDER BY chlopocoin_balance DESC, id ASC
+            LIMIT ?
+            """,
+            (fetch_limit,),
+        ).fetchall()
+
+        leaderboard = []
+        if rows:
+            hydrated = _hydrate_profiles(conn, rows)
+            q_norm = normalize_text(query).strip() if query else ""
+            for p in hydrated:
+                if q_norm:
+                    name_match = q_norm in normalize_text(p["name"])
+                    loc_match = q_norm in normalize_text(p.get("location_name") or "")
+                    skills_match = any(q_norm in normalize_text(s) for s in p.get("can_help", []))
+                    if not (name_match or loc_match or skills_match):
+                        continue
+
+                leaderboard.append(
+                    {
+                        "id": p["id"],
+                        "name": p["name"],
+                        "location_name": p.get("location_name") or "Polska",
+                        "chlopocoin_balance": p.get("chlopocoin_balance", 0),
+                        "can_help": p.get("can_help", []),
+                        "need_help": p.get("need_help", []),
+                        "created_at": p.get("created_at"),
+                    }
+                )
+                if len(leaderboard) >= limit:
+                    break
+
+        return {
+            "total_holders_count": holders_count,
+            "total_coins_minted": total_supply,
+            "leaderboard": leaderboard,
+            "top_three": leaderboard[:3],
+        }

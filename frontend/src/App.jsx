@@ -7,6 +7,7 @@ import { HomeView } from "./views/HomeView";
 import { MatchingView } from "./views/MatchingView";
 import { ProfileDetailView } from "./views/ProfileDetailView";
 import { ProfileEditorView } from "./views/ProfileEditorView";
+import { RankingsView } from "./views/RankingsView";
 
 const STORAGE_KEY_MY_PROFILE = "bronet_my_profile_id";
 const STORAGE_KEY_MY_PROFILE_CACHE = "bronet_my_profile_cache";
@@ -32,8 +33,11 @@ function parseRoute(pathname) {
   if (pathname === "/dopasowania") {
     return { view: "matches", nav: "matches", profileId: null };
   }
-  if (pathname === "/statystyki" || pathname === "/mapa") {
-    return { view: "stats", nav: "stats", profileId: null };
+  if (pathname === "/chlopchain" || pathname === "/statystyki" || pathname === "/mapa") {
+    return { view: "chlopchain", nav: "chlopchain", profileId: null };
+  }
+  if (pathname === "/rankingi" || pathname === "/ranking") {
+    return { view: "rankings", nav: "rankings", profileId: null };
   }
   const match = pathname.match(/^\/profil\/(\d+)$/);
   if (match) {
@@ -152,9 +156,9 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (pathname === "/mapa") {
-      window.history.replaceState({}, "", "/statystyki");
-      setPathname("/statystyki");
+    if (pathname === "/mapa" || pathname === "/statystyki") {
+      window.history.replaceState({}, "", "/chlopchain");
+      setPathname("/chlopchain");
     }
   }, [pathname]);
 
@@ -240,10 +244,14 @@ export function App() {
   }, []);
 
   const handleOpenProfile = useCallback(
-    (profile) => {
-      if (profile && profile.id) {
-        setProfilesCache((prev) => ({ ...prev, [profile.id]: profile }));
-        navigate(`/profil/${profile.id}`);
+    (profileOrId) => {
+      if (!profileOrId) return;
+      const id = typeof profileOrId === "object" ? profileOrId.id : Number(profileOrId);
+      if (id) {
+        if (typeof profileOrId === "object") {
+          setProfilesCache((prev) => ({ ...prev, [id]: profileOrId }));
+        }
+        navigate(`/profil/${id}`);
       }
     },
     [navigate]
@@ -362,8 +370,15 @@ export function App() {
           />
         )}
 
-        {route.view === "stats" && (
+        {(route.view === "chlopchain" || route.view === "stats") && (
           <GlobalStatsView
+            onOpenProfile={handleOpenProfile}
+            onNavigate={navigate}
+          />
+        )}
+
+        {route.view === "rankings" && (
+          <RankingsView
             onOpenProfile={handleOpenProfile}
             onNavigate={navigate}
           />

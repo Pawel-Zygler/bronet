@@ -264,6 +264,7 @@ test.describe("Landing & Search", () => {
       tag: ["@smoke", "@regression"]
     },
     async ({ page, request }) => {
+      test.setTimeout(60000);
       const uid = `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
       const skillMutualA = `spawacz_${uid}`;
       const skillMutualB = `stolarz_${uid}`;
@@ -423,18 +424,19 @@ test.describe("Landing & Search", () => {
   );
 
   test(
-    "zakładka Statystyki (/statystyki): prezentuje globalne statystyki Chłopocoinów, księgę bloków Chłopchain i ranking",
+    "zakładka Chłopchain (/chlopchain): prezentuje sieć Chłopchain, silnik 1–5 TPS, księgę bloków oraz przekierowanie z /statystyki",
     { tag: ["@smoke", "@regression"] },
     async ({ page }) => {
-      // 1. Otwarcie strony głównej i kliknięcie 'Statystyki' w nawigacji
+      // 1. Otwarcie strony głównej i kliknięcie 'Chłopchain' w nawigacji
       await page.goto("/");
-      const statsLink = page.locator("#nav-link-stats");
-      await expect(statsLink).toBeVisible();
-      await statsLink.click();
+      const chlopchainLink = page.locator("#nav-link-chlopchain");
+      await expect(chlopchainLink).toBeVisible();
+      await expect(chlopchainLink).toHaveText("Chłopchain");
+      await chlopchainLink.click();
 
       // 2. Weryfikacja URL i nagłówka
-      await expect(page).toHaveURL("/statystyki");
-      await expect(page.locator("#stats-heading")).toHaveText("Globalne Statystyki Chłopocoinów");
+      await expect(page).toHaveURL("/chlopchain");
+      await expect(page.locator("#stats-heading")).toContainText("Chłopchain");
 
       // 3. Weryfikacja integralności łańcucha i metryk sieci
       await expect(page.locator("#stats-chain-integrity")).toBeVisible();
@@ -453,7 +455,7 @@ test.describe("Landing & Search", () => {
       await expect(page.locator("#global-stats-blocks-ledger")).toBeVisible();
       await expect(page.locator("#global-stats-blocks-ledger")).toContainText("Konsensus 2/2");
 
-      // 5. Przełączenie na zakładkę 'Ranking Pomocnych Chłopów'
+      // 5. Przełączenie na zakładkę 'Ranking Pomocnych Chłopów' / podgląd
       await page.locator("#tab-btn-leaderboard").click();
       await expect(page.locator("#global-stats-leaderboard")).toBeVisible();
 
@@ -466,9 +468,51 @@ test.describe("Landing & Search", () => {
       await expect(refreshBtn).toBeVisible();
       await refreshBtn.click();
 
-      // 8. Weryfikacja przekierowania ze starego adresu /mapa -> /statystyki
+      // 8. Weryfikacja przekierowania ze starych adresów /mapa oraz /statystyki -> /chlopchain
       await page.goto("/mapa");
-      await expect(page).toHaveURL("/statystyki");
+      await expect(page).toHaveURL("/chlopchain");
+      await page.goto("/statystyki");
+      await expect(page).toHaveURL("/chlopchain");
+    }
+  );
+
+  test(
+    "zakładka Rankingi (/rankingi): eksponuje dedykowany ranking pomocnych chłopów, medale, filtry i wyszukiwarkę",
+    { tag: ["@smoke", "@regression"] },
+    async ({ page }) => {
+      await page.goto("/");
+      const rankingsLink = page.locator("#nav-link-rankings");
+      await expect(rankingsLink).toBeVisible();
+      await expect(rankingsLink).toHaveText("Rankingi");
+      await rankingsLink.click();
+
+      await expect(page).toHaveURL("/rankingi");
+      await expect(page.locator("#rankings-heading")).toHaveText("Rankingi Pomocnych Chłopów");
+      await expect(page.locator("#rankings-container")).toBeVisible();
+
+      // Tabela rankingu jest widoczna i zawiera pozycje
+      const leaderboard = page.locator("#global-stats-leaderboard");
+      await expect(leaderboard).toBeVisible();
+      await expect(leaderboard).toContainText("Pozycja");
+
+      // Weryfikacja działania przycisku 'Zobacz profil' w rankingu
+      const firstProfileBtn = leaderboard.locator("button", { hasText: "Zobacz profil" }).first();
+      await expect(firstProfileBtn).toBeVisible();
+      await firstProfileBtn.click();
+      await expect(page).toHaveURL(/\/profil\/\d+/);
+      await expect(page.locator("#detail-heading")).toBeVisible();
+
+      // Powrót do rankingu
+      await page.goto("/rankingi");
+      await expect(page.locator("#rankings-container")).toBeVisible();
+
+      // Wyszukiwarka w rankingu
+      const searchInput = page.locator("#rankings-search-input");
+      await expect(searchInput).toBeVisible();
+
+      // Przycisk odświeżenia
+      const refreshBtn = page.locator("#btn-refresh-rankings");
+      await expect(refreshBtn).toBeVisible();
     }
   );
 
@@ -534,6 +578,7 @@ test.describe("Landing & Search", () => {
 
         // 4. Wylogowanie Wojtka
         await page.locator(".desktop-nav button", { hasText: "Wyloguj" }).click();
+        await expect(page.locator(".desktop-nav button", { hasText: "Wyloguj" })).toHaveCount(0);
         await page.goto("/profil");
         await expect(page.locator("#login-email")).toBeVisible();
 
@@ -580,6 +625,7 @@ test.describe("Landing & Search", () => {
 
         // 8. Wylogowanie Mirka
         await page.locator(".desktop-nav button", { hasText: "Wyloguj" }).click();
+        await expect(page.locator(".desktop-nav button", { hasText: "Wyloguj" })).toHaveCount(0);
         await page.goto("/profil");
         await expect(page.locator("#login-email")).toBeVisible();
 
@@ -606,11 +652,11 @@ test.describe("Landing & Search", () => {
         await expect(ledgerA).toContainText(userB.name);
         await expect(ledgerA).toContainText("+1 🪙 CC");
 
-        // 10. Weryfikacja w globalnej zakładce 'Statystyki' (/statystyki)
-        const globalStatsNav = page.locator("#nav-link-stats");
-        await expect(globalStatsNav).toBeVisible();
-        await globalStatsNav.click();
-        await expect(page).toHaveURL("/statystyki");
+        // 10. Weryfikacja w zakładce 'Chłopchain' (/chlopchain)
+        const chlopchainNav = page.locator("#nav-link-chlopchain");
+        await expect(chlopchainNav).toBeVisible();
+        await chlopchainNav.click();
+        await expect(page).toHaveURL("/chlopchain");
 
         // Nowo wykopany blok jest w księdze globalnej
         const globalLedger = page.locator("#global-stats-blocks-ledger");

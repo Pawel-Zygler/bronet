@@ -79,13 +79,23 @@ export function Topbar({
                 Dopasowania
               </a>
               <a
-                href="/statystyki"
-                id="nav-link-stats"
-                aria-current={activeNav === "stats" ? "page" : undefined}
-                className={`nav-link ${activeNav === "stats" ? "is-active" : ""}`}
-                onClick={(e) => handleLink(e, "/statystyki")}
+                href="/chlopchain"
+                id="nav-link-chlopchain"
+                data-testid="nav-link-stats"
+                aria-current={(activeNav === "chlopchain" || activeNav === "stats") ? "page" : undefined}
+                className={`nav-link ${(activeNav === "chlopchain" || activeNav === "stats") ? "is-active" : ""}`}
+                onClick={(e) => handleLink(e, "/chlopchain")}
               >
-                Statystyki
+                Chłopchain
+              </a>
+              <a
+                href="/rankingi"
+                id="nav-link-rankings"
+                aria-current={activeNav === "rankings" ? "page" : undefined}
+                className={`nav-link ${activeNav === "rankings" ? "is-active" : ""}`}
+                onClick={(e) => handleLink(e, "/rankingi")}
+              >
+                Rankingi
               </a>
               <a
                 href="/profil"

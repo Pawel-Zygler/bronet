@@ -10,11 +10,15 @@
     "test:regression": "playwright test --grep @regression",
     "test:prod:smoke": "PLAYWRIGHT_BASE_URL=https://bronet-production-10e7.up.railway.app playwright test --grep @smoke",
     "test:prod:regression": "PLAYWRIGHT_BASE_URL=https://bronet-production-10e7.up.railway.app playwright test --grep @regression",
+    "test:currents": "pwc test",
+    "test:currents:smoke": "pwc test --grep @smoke",
+    "test:currents:regression": "pwc test --grep @regression",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
     "test:unit": "python3 -m unittest discover -s tests -v"
   },
   "devDependencies": {
+    "@currents/playwright": "^2.7.0",
     "@playwright/test": "^1.49.0"
   }
 }

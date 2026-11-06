@@ -85,6 +85,7 @@ export function ProfileEditorView({
   // Chłopocoin stats
   const [chlopocoinStats, setChlopocoinStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
+  const [visibleProfileBlocksCount, setVisibleProfileBlocksCount] = useState(6);
 
   useEffect(() => {
     if (activeTab === "stats" && editingId) {
@@ -1088,7 +1089,7 @@ export function ProfileEditorView({
                         </tr>
                       </thead>
                       <tbody>
-                        {chlopocoinStats.blocks.map((b) => (
+                        {chlopocoinStats.blocks.slice(0, visibleProfileBlocksCount).map((b) => (
                           <tr key={b.block_index}>
                             <td><strong>#{b.block_index}</strong></td>
                             <td>{b.partner_name}</td>
@@ -1099,6 +1100,35 @@ export function ProfileEditorView({
                         ))}
                       </tbody>
                     </table>
+
+                    {chlopocoinStats.blocks.length > 6 && (
+                      <div className="load-more-ledger-bar">
+                        <span className="load-more-counter">
+                          Wyświetlono {Math.min(visibleProfileBlocksCount, chlopocoinStats.blocks.length)} z {chlopocoinStats.blocks.length} wykopanych bloków
+                        </span>
+                        <div className="load-more-btn-group">
+                          {visibleProfileBlocksCount < chlopocoinStats.blocks.length && (
+                            <button
+                              type="button"
+                              id="btn-load-more-profile-blocks"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => setVisibleProfileBlocksCount((prev) => prev + 6)}
+                            >
+                              Pokaż więcej bloków (+6)
+                            </button>
+                          )}
+                          {visibleProfileBlocksCount > 6 && (
+                            <button
+                              type="button"
+                              className="btn btn-outline btn-sm"
+                              onClick={() => setVisibleProfileBlocksCount(6)}
+                            >
+                              Zwiń do 6
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="ledger-empty-box">

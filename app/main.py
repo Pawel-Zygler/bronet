@@ -14,6 +14,7 @@ from app.database import (
     confirm_chlop_help,
     create_profile,
     delete_profile,
+    get_chlopocoin_rankings,
     get_chlopocoin_stats,
     get_chlopocoin_status,
     get_global_chlopocoin_stats,
@@ -49,7 +50,15 @@ async def revalidate_static_and_spa(request: Request, call_next):
     path = request.url.path
     if path.startswith("/static/assets/"):
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
-    elif path == "/" or path.startswith("/profil") or path.startswith("/dopasowania") or path.startswith("/statystyki") or path.startswith("/static/"):
+    elif (
+        path == "/"
+        or path.startswith("/profil")
+        or path.startswith("/dopasowania")
+        or path.startswith("/chlopchain")
+        or path.startswith("/rankingi")
+        or path.startswith("/statystyki")
+        or path.startswith("/static/")
+    ):
         response.headers["Cache-Control"] = "no-cache, must-revalidate"
     return response
 
@@ -213,6 +222,14 @@ def api_simulator_tick(count: Optional[int] = Query(None, ge=1, le=50)) -> dict:
     return economy_simulator.tick(custom_count=count)
 
 
+@app.get("/api/chlopocoin/rankings")
+def api_chlopocoin_rankings(
+    q: str = Query(default="", description="Filtr po imieniu, mieście lub umiejętności"),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> dict:
+    return get_chlopocoin_rankings(query=q, limit=limit)
+
+
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
@@ -223,12 +240,18 @@ def serve_manifest() -> FileResponse:
 
 @app.get("/mapa", include_in_schema=False)
 def redirect_mapa() -> RedirectResponse:
-    return RedirectResponse(url="/statystyki", status_code=302)
+    return RedirectResponse(url="/chlopchain", status_code=302)
+
+
+@app.get("/statystyki", include_in_schema=False)
+def redirect_statystyki() -> RedirectResponse:
+    return RedirectResponse(url="/chlopchain", status_code=302)
 
 
 @app.get("/", include_in_schema=False)
 @app.get("/dopasowania", include_in_schema=False)
-@app.get("/statystyki", include_in_schema=False)
+@app.get("/chlopchain", include_in_schema=False)
+@app.get("/rankingi", include_in_schema=False)
 @app.get("/profil", include_in_schema=False)
 @app.get("/profil/{profile_id}", include_in_schema=False)
 def serve_spa(profile_id: str = "") -> FileResponse:

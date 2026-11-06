@@ -8,6 +8,11 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
   const [lastRefreshed, setLastRefreshed] = useState(null);
   const [activeTab, setActiveTab] = useState("blocks"); // "blocks" | "leaderboard" | "mempool"
 
+  // Paginacja / "Load more" dla historycznych wpisów
+  const [visibleBlocksCount, setVisibleBlocksCount] = useState(15);
+  const [visibleLeaderboardCount, setVisibleLeaderboardCount] = useState(10);
+  const [visibleMempoolCount, setVisibleMempoolCount] = useState(10);
+
   const fetchStats = useCallback(async (isManual = false) => {
     if (isManual) setIsLoading(true);
     setError("");
@@ -62,7 +67,7 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
             <span className="chain-pulse-dot" aria-hidden="true" />
             <span>Ekonomia Blockchain • Chłopchain</span>
           </div>
-          <h1 id="stats-heading">Globalne Statystyki Chłopocoinów</h1>
+          <h1 id="stats-heading">Chłopchain — Sieć Wzajemnej Pomocy</h1>
           <p className="global-stats-lead">
             Zdecentralizowana sieć wzajemnej chłopskiej pomocy. Każdy Chłopocoin (🪙 CC) powstaje
             wyłącznie w wyniku osiągnięcia <strong>konsensusu 2/2</strong> — gdy obaj chłopi
@@ -274,6 +279,24 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
         </div>
       </div>
 
+      {/* Baner informujący o nowej dedykowanej zakładce Rankingi */}
+      <div className="rankings-cta-banner">
+        <div className="cta-banner-content">
+          <span className="cta-banner-badge" aria-hidden="true">🏆 NOWA ZAKŁADKA</span>
+          <div className="cta-banner-text">
+            <strong>Szukasz rankingu najbardziej pomocnych chłopów?</strong>
+            <p>Sprawdź dedykowaną zakładkę <strong>Rankingi</strong> z podium, filtrami miast i pełną listą liderów.</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm btn-open-rankings"
+          onClick={() => onNavigate("/rankingi")}
+        >
+          Otwórz Rankingi →
+        </button>
+      </div>
+
       {/* Nawigacja po podsekcjach */}
       <div className="global-stats-tabs" role="tablist" aria-label="Sekcje statystyk sieci">
         <button
@@ -356,7 +379,7 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {stats.blocks.map((b) => (
+                  {stats.blocks.slice(0, visibleBlocksCount).map((b) => (
                     <tr key={b.block_index}>
                       <td className="block-index-cell">
                         <span className="badge-block-num">#{b.block_index}</span>
@@ -401,6 +424,44 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
                   ))}
                 </tbody>
               </table>
+
+              {stats.blocks.length > 15 && (
+                <div className="load-more-ledger-bar" id="load-more-blocks-bar">
+                  <span className="load-more-counter">
+                    Wyświetlono {Math.min(visibleBlocksCount, stats.blocks.length)} z {stats.blocks.length} bloków
+                  </span>
+                  <div className="load-more-btn-group">
+                    {visibleBlocksCount < stats.blocks.length && (
+                      <button
+                        type="button"
+                        id="btn-load-more-blocks"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => setVisibleBlocksCount((prev) => prev + 15)}
+                      >
+                        Pokaż więcej bloków (+15)
+                      </button>
+                    )}
+                    {visibleBlocksCount > 15 && (
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        onClick={() => setVisibleBlocksCount(15)}
+                      >
+                        Zwiń do 15
+                      </button>
+                    )}
+                    {visibleBlocksCount < stats.blocks.length && (
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        onClick={() => setVisibleBlocksCount(stats.blocks.length)}
+                      >
+                        Pokaż wszystkie ({stats.blocks.length})
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="stats-empty-state">
@@ -442,7 +503,7 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {stats.leaderboard.map((item, idx) => (
+                  {stats.leaderboard.slice(0, visibleLeaderboardCount).map((item, idx) => (
                     <tr key={item.id} className={idx < 3 ? `top-row rank-${idx + 1}` : ""}>
                       <td className="rank-cell">
                         {idx === 0 && <span className="rank-medal">🥇 #1</span>}
@@ -488,6 +549,33 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
                   ))}
                 </tbody>
               </table>
+
+              {stats.leaderboard.length > 10 && (
+                <div className="load-more-ledger-bar">
+                  <span className="load-more-counter">
+                    Wyświetlono {Math.min(visibleLeaderboardCount, stats.leaderboard.length)} z {stats.leaderboard.length} pozycji
+                  </span>
+                  <div className="load-more-btn-group">
+                    {visibleLeaderboardCount < stats.leaderboard.length && (
+                      <button
+                        type="button"
+                        id="btn-load-more-stats-leaderboard"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => setVisibleLeaderboardCount((prev) => prev + 15)}
+                      >
+                        Pokaż kolejnych (+15)
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={() => onNavigate("/rankingi")}
+                    >
+                      Otwórz pełne Rankingi →
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="stats-empty-state">
@@ -530,7 +618,7 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {stats.mempool.map((m) => (
+                  {stats.mempool.slice(0, visibleMempoolCount).map((m) => (
                     <tr key={m.id}>
                       <td>
                         <button
@@ -571,6 +659,35 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
                   ))}
                 </tbody>
               </table>
+
+              {stats.mempool.length > 10 && (
+                <div className="load-more-ledger-bar">
+                  <span className="load-more-counter">
+                    Wyświetlono {Math.min(visibleMempoolCount, stats.mempool.length)} z {stats.mempool.length} oczekujących
+                  </span>
+                  <div className="load-more-btn-group">
+                    {visibleMempoolCount < stats.mempool.length && (
+                      <button
+                        type="button"
+                        id="btn-load-more-mempool"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => setVisibleMempoolCount((prev) => prev + 10)}
+                      >
+                        Pokaż więcej (+10)
+                      </button>
+                    )}
+                    {visibleMempoolCount > 10 && (
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        onClick={() => setVisibleMempoolCount(10)}
+                      >
+                        Zwiń do 10
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="stats-empty-state">

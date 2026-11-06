@@ -36,18 +36,38 @@ export function MobileNav({ activeNav, myProfile, onNavigate }) {
         <span>Dopasowania</span>
       </a>
       <a
-        href="/statystyki"
-        id="mobile-nav-link-stats"
-        aria-current={activeNav === "stats" ? "page" : undefined}
-        className={`mobile-nav-item ${activeNav === "stats" ? "is-active" : ""}`}
-        onClick={(e) => handleLink(e, "/statystyki")}
+        href="/chlopchain"
+        id="mobile-nav-link-chlopchain"
+        aria-current={(activeNav === "chlopchain" || activeNav === "stats") ? "page" : undefined}
+        className={`mobile-nav-item ${(activeNav === "chlopchain" || activeNav === "stats") ? "is-active" : ""}`}
+        onClick={(e) => handleLink(e, "/chlopchain")}
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-          <line x1="18" y1="20" x2="18" y2="10" />
-          <line x1="12" y1="20" x2="12" y2="4" />
-          <line x1="6" y1="20" x2="6" y2="14" />
+          <rect x="3" y="3" width="7" height="7" rx="1" />
+          <rect x="14" y="3" width="7" height="7" rx="1" />
+          <rect x="14" y="14" width="7" height="7" rx="1" />
+          <rect x="3" y="14" width="7" height="7" rx="1" />
+          <line x1="10" y1="6.5" x2="14" y2="6.5" />
+          <line x1="10" y1="17.5" x2="14" y2="17.5" />
         </svg>
-        <span>Statystyki</span>
+        <span>Chłopchain</span>
+      </a>
+      <a
+        href="/rankingi"
+        id="mobile-nav-link-rankings"
+        aria-current={activeNav === "rankings" ? "page" : undefined}
+        className={`mobile-nav-item ${activeNav === "rankings" ? "is-active" : ""}`}
+        onClick={(e) => handleLink(e, "/rankingi")}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+          <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+          <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+          <path d="M4 22h16" />
+          <path d="M10 14.66V17c0 .55-.45 1-1 1H7" />
+          <path d="M14 14.66V17c0 .55.45 1 1 1h2" />
+          <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+        </svg>
+        <span>Rankingi</span>
       </a>
       <a
         href="/profil"
