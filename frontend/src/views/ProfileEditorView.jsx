@@ -158,8 +158,7 @@ export function ProfileEditorView({
       setForceShowDeletePw(false);
       setDeleteError("");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profileSyncVersion]);
+  }, [profileSyncVersion, myProfile]);
 
   const showLoginFront = !isLoggedIn && unauthMode === "login";
 
@@ -1151,6 +1150,23 @@ export function ProfileEditorView({
               className="profile-tab-panel"
               hidden={activeTab !== "auth"}
             >
+              {isLoggedIn && (
+                <div className="sheet-line sheet-line-wrap" id="account-role-row">
+                  <span className="sheet-label">Rola konta:</span>
+                  <div className="inline-entry-group">
+                    {myProfile?.role === "admin" || email?.trim().toLowerCase() === "pawel.zygler@gmail.com" ? (
+                      <span className="badge-role-admin" id="profile-role-badge">
+                        🛡️ Administrator (pełne uprawnienia do ekonomii Chłopchain)
+                      </span>
+                    ) : (
+                      <span className="badge-role-user" id="profile-role-badge">
+                        👤 Chłop (Zwykły użytkownik)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="sheet-line sheet-line-wrap">
                 <label htmlFor="field-email" className="sheet-label">
                   E-mail:

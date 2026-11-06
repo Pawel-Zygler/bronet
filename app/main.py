@@ -1,13 +1,14 @@
 import os
 from pathlib import Path
 from typing import List, Optional
-from fastapi import Body, FastAPI, Header, HTTPException, Query, Request
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.economy_engine import economy_simulator
 
 from app.database import (
+    ADMIN_EMAIL,
     ProfileAuthError,
     ProfileValidationError,
     authenticate_profile_by_email,
@@ -22,10 +23,15 @@ from app.database import (
     get_profile,
     get_skills_catalog,
     init_db,
+    is_admin_email,
+    list_chat_messages,
+    create_chat_message,
     list_profiles,
     update_profile,
 )
 from app.models import (
+    ChatMessagePayload,
+    ChatMessageResponse,
     ConfirmHelpPayload,
     DeletePayload,
     LoginPayload,
@@ -213,17 +219,29 @@ def api_global_chlopocoin_stats() -> dict:
     return stats
 
 
+def verify_admin_access(
+    x_admin_email: Optional[str] = Header(None, alias="X-Admin-Email"),
+    admin_email_query: Optional[str] = Query(None, alias="admin_email"),
+) -> None:
+    email = x_admin_email or admin_email_query
+    if not is_admin_email(email):
+        raise HTTPException(
+            status_code=403,
+            detail="Brak uprawnień. Tylko administrator (pawel.zygler@gmail.com) ma dostęp do kontrolek ekonomii.",
+        )
+
+
 @app.get("/api/chlopocoin/simulator/status")
 def api_simulator_status() -> dict:
     return economy_simulator.get_status()
 
 
-@app.post("/api/chlopocoin/simulator/tick")
+@app.post("/api/chlopocoin/simulator/tick", dependencies=[Depends(verify_admin_access)])
 def api_simulator_tick(count: Optional[int] = Query(None, ge=1, le=50)) -> dict:
     return economy_simulator.tick(custom_count=count)
 
 
-@app.post("/api/chlopocoin/simulator/config")
+@app.post("/api/chlopocoin/simulator/config", dependencies=[Depends(verify_admin_access)])
 async def api_simulator_config(payload: SimulatorConfigPayload) -> dict:
     return await economy_simulator.update_config(
         min_tps=payload.min_tps,
@@ -234,12 +252,12 @@ async def api_simulator_config(payload: SimulatorConfigPayload) -> dict:
     )
 
 
-@app.post("/api/chlopocoin/simulator/reset-cycle")
+@app.post("/api/chlopocoin/simulator/reset-cycle", dependencies=[Depends(verify_admin_access)])
 def api_simulator_reset_cycle() -> dict:
     return economy_simulator.reset_cycle()
 
 
-@app.post("/api/chlopocoin/simulator/toggle")
+@app.post("/api/chlopocoin/simulator/toggle", dependencies=[Depends(verify_admin_access)])
 async def api_simulator_toggle() -> dict:
     return await economy_simulator.toggle_running()
 
@@ -250,6 +268,30 @@ def api_chlopocoin_rankings(
     limit: int = Query(default=100, ge=1, le=500),
 ) -> dict:
     return get_chlopocoin_rankings(query=q, limit=limit)
+
+
+@app.get("/api/chat/messages", response_model=List[ChatMessageResponse])
+def api_list_chat_messages(
+    limit: int = Query(default=50, ge=1, le=200),
+    since_id: int = Query(default=0, ge=0),
+) -> List[dict]:
+    return list_chat_messages(limit=limit, since_id=since_id)
+
+
+@app.post("/api/chat/messages", response_model=ChatMessageResponse, status_code=201)
+def api_send_chat_message(
+    payload: ChatMessagePayload,
+    x_profile_id: Optional[int] = Header(default=None),
+) -> dict:
+    effective_profile_id = payload.profile_id or x_profile_id
+    try:
+        return create_chat_message(
+            message=payload.message,
+            author_name=payload.author_name or "",
+            profile_id=effective_profile_id,
+        )
+    except ProfileValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

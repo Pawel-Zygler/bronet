@@ -168,9 +168,16 @@ export function ProfileDetailView({
         ) : profile ? (
           <>
             <div className="profile-detail-header-row">
-              <h1 className="page-title" id="detail-heading" style={{ margin: 0 }}>
-                {profile.name}
-              </h1>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                <h1 className="page-title" id="detail-heading" style={{ margin: 0 }}>
+                  {profile.name}
+                </h1>
+                {profile.role === "admin" || profile.email?.trim().toLowerCase() === "pawel.zygler@gmail.com" ? (
+                  <span className="badge-role-admin" id="detail-role-badge">🛡️ Admin</span>
+                ) : (
+                  <span className="badge-role-user" id="detail-role-badge">Chłop</span>
+                )}
+              </div>
               <div
                 className="profile-coin-pill"
                 id="detail-coin-pill"

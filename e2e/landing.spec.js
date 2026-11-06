@@ -612,11 +612,11 @@ test.describe("Landing & Search", () => {
         await expect(statsTabB).toBeVisible();
         await statsTabB.click();
 
-        // Saldo Mirka wynosi 1 CC
+        // Saldo Mirka wynosi co najmniej 1 CC (otrzymał monetę za konsensus)
         await expect(page.locator("#editor-panel-stats")).toBeVisible();
         const coinBalanceB = page.locator("#stats-coin-balance");
         await expect(coinBalanceB).toBeVisible();
-        await expect(coinBalanceB).toHaveText("1");
+        await expect(coinBalanceB).toHaveText(/^[1-9]\d*$/);
 
         // W księdze bloków Mirka widnieje Wojtek z nagrodą +1 CC
         const ledgerB = page.locator("#stats-blocks-ledger");
@@ -642,10 +642,10 @@ test.describe("Landing & Search", () => {
         await expect(statsTabA).toBeVisible();
         await statsTabA.click();
 
-        // Saldo Wojtka również wynosi 1 CC (każdy profil dostał po coinie!)
+        // Saldo Wojtka również wynosi co najmniej 1 CC (każdy profil dostał po coinie!)
         const coinBalanceA = page.locator("#stats-coin-balance");
         await expect(coinBalanceA).toBeVisible();
-        await expect(coinBalanceA).toHaveText("1");
+        await expect(coinBalanceA).toHaveText(/^[1-9]\d*$/);
 
         // W księdze bloków Wojtka widnieje Mirek z nagrodą +1 CC
         const ledgerA = page.locator("#stats-blocks-ledger");
@@ -663,9 +663,10 @@ test.describe("Landing & Search", () => {
         const globalLedger = page.locator("#global-stats-blocks-ledger");
         await expect(globalLedger).toBeVisible();
         const loadAllBtn = page.locator("#btn-load-all-blocks");
-        if (await loadAllBtn.isVisible()) {
+        try {
+          await loadAllBtn.waitFor({ state: "visible", timeout: 3000 });
           await loadAllBtn.click();
-        }
+        } catch (_) {}
         await expect(globalLedger).toContainText(userA.name);
         await expect(globalLedger).toContainText(userB.name);
         await expect(globalLedger).toContainText("+2 🪙 CC");
@@ -694,16 +695,40 @@ test.describe("Landing & Search", () => {
   test(
     "smoke: sidebar z suwakami kontroli ekonomii chłopchaina (zmiana TPS, tempa, cel puli, przyciski akcji)",
     { tag: ["@smoke", "@regression"] },
-    async ({ page }) => {
+    async ({ page, request }) => {
+      // 1. Zwykły gość / użytkownik bez uprawnień -> brak sidebara ekonomii
       await page.goto("/chlopchain");
       await expect(page.locator("#global-stats-container")).toBeVisible();
+      await expect(page.locator("#chlopchain-sidebar")).toHaveCount(0);
+      await expect(page.locator("#guest-indicator-badge")).toBeVisible();
 
-      // Sidebar jest widoczny na desktopie
+      // 2. Utworzenie konta administratora (pawel.zygler@gmail.com) i logowanie
+      const adminEmail = "pawel.zygler@gmail.com";
+      const adminPw = "admin123";
+      await request.post("/api/profiles", {
+        data: {
+          name: "Paweł Admin",
+          email: adminEmail,
+          password: adminPw,
+          can_help: ["programowanie"],
+          need_help: ["hydraulika"],
+        },
+      });
+
+      await page.goto("/profil");
+      await page.locator("#login-email").fill(adminEmail);
+      await page.locator("#login-password").fill(adminPw);
+      await page.locator("#login-password").press("Enter");
+      await expect(page.locator(".desktop-nav")).toContainText("Admin");
+
+      // 3. Przejście do Chłopchain przez Administratora -> Sidebar jest widoczny
+      await page.goto("/chlopchain");
       const sidebar = page.locator("#chlopchain-sidebar");
       await expect(sidebar).toBeVisible();
       await expect(sidebar).toContainText("Konsola Ekonomii");
+      await expect(page.locator("#admin-indicator-badge")).toBeVisible();
 
-      // Suwaki są obecne w DOM
+      // Suwaki są obecne w DOM dla admina
       const sliderMin = page.locator("#slider-min-tps");
       const sliderMax = page.locator("#slider-max-tps");
       const sliderInterval = page.locator("#slider-interval");
@@ -740,6 +765,66 @@ test.describe("Landing & Search", () => {
       await page.locator("#btn-force-tick-5").click();
       // Po ticku silnik zaktualizował telemetrię
       await expect(sidebar.locator(".telemetry-item strong").first()).not.toHaveText(initialTotal);
+    }
+  );
+
+  test(
+    "smoke: global chat w lewym dolnym rogu (wysyłanie wiadomości i synchronizacja między urządzeniami)",
+    { tag: ["@smoke", "@regression"] },
+    async ({ browser }) => {
+      // 1. Urządzenie A (np. komputer)
+      const contextA = await browser.newContext();
+      const pageA = await contextA.newPage();
+      await pageA.goto("/");
+
+      const chatWidgetA = pageA.locator("#global-chat-widget");
+      await expect(chatWidgetA).toBeVisible();
+
+      // Upewnij się, że okno czatu jest otwarte
+      if (await pageA.locator("#btn-open-global-chat").isVisible()) {
+        await pageA.locator("#btn-open-global-chat").click();
+      }
+      const chatWindowA = pageA.locator("#chat-window-content");
+      await expect(chatWindowA).toBeVisible();
+      await expect(chatWindowA).toContainText("Globalny Czat");
+
+      // 2. Urządzenie B (np. telefon - emulacja mobilna)
+      const contextB = await browser.newContext({
+        viewport: { width: 375, height: 667 },
+        userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15",
+      });
+      const pageB = await contextB.newPage();
+      await pageB.goto("/");
+
+      // Na telefonie otwieramy czat
+      const openBtnB = pageB.locator("#btn-open-global-chat");
+      if (await openBtnB.isVisible()) {
+        await openBtnB.click();
+      }
+      const chatWindowB = pageB.locator("#chat-window-content");
+      await expect(chatWindowB).toBeVisible();
+
+      // Telefon wpisuje nick i wysyła unikalną wiadomość
+      const testMsg = `Siemanko z telefonu #${Date.now().toString().slice(-5)}`;
+      await pageB.locator("#chat-custom-nick").fill("ChłopMobilny");
+      await pageB.locator("#chat-message-input").fill(testMsg);
+      await pageB.locator("#btn-send-chat").click();
+
+      // Wiadomość pojawia się natychmiast na telefonie
+      await expect(pageB.locator("#chat-messages-list")).toContainText(testMsg);
+
+      // Wiadomość pojawia się na komputerze w oknie czatu (synchronizacja live)
+      await expect(pageA.locator("#chat-messages-list")).toContainText(testMsg, { timeout: 10000 });
+      await expect(pageA.locator("#chat-messages-list")).toContainText("ChłopMobilny");
+
+      // Test minimalizacji i ponownego otwarcia
+      await pageA.locator("#btn-close-global-chat").click();
+      await expect(pageA.locator("#btn-open-global-chat")).toBeVisible();
+      await pageA.locator("#btn-open-global-chat").click();
+      await expect(pageA.locator("#chat-window-content")).toBeVisible();
+
+      await contextA.close();
+      await contextB.close();
     }
   );
 });

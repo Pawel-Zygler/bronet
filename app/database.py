@@ -39,6 +39,15 @@ class ProfileValidationError(Exception):
 # Globalny zamek wątkowy chroniący operacje wybijania bloków Chłopchaina
 BLOCKCHAIN_LOCK = threading.Lock()
 
+# Rola administratora ekonomii Chłopchain (dostęp tylko dla tego adresu e-mail)
+ADMIN_EMAIL = "pawel.zygler@gmail.com"
+
+
+def is_admin_email(email: Optional[str]) -> bool:
+    if not email:
+        return False
+    return email.strip().lower() == ADMIN_EMAIL
+
 
 # Męskie wyjątki imion kończących się na literę 'a'
 MALE_EXCEPTIONS_ENDING_IN_A = {
@@ -340,7 +349,11 @@ def init_db(seed: bool = True) -> None:
             conn.execute("ALTER TABLE profiles ADD COLUMN share_location INTEGER NOT NULL DEFAULT 0;")
         if "chlopocoin_balance" not in cols:
             conn.execute("ALTER TABLE profiles ADD COLUMN chlopocoin_balance INTEGER NOT NULL DEFAULT 0;")
+        if "role" not in cols:
+            conn.execute("ALTER TABLE profiles ADD COLUMN role TEXT NOT NULL DEFAULT 'user';")
+        conn.execute("UPDATE profiles SET role = 'admin' WHERE LOWER(TRIM(email)) = ?;", (ADMIN_EMAIL,))
         conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_role ON profiles(role);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_share_location ON profiles(share_location);")
 
         conn.executescript(
@@ -379,6 +392,17 @@ def init_db(seed: bool = True) -> None:
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS global_chat_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_id INTEGER,
+                author_name TEXT NOT NULL DEFAULT '',
+                message TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_chat_messages_id ON global_chat_messages(id);
+            CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON global_chat_messages(created_at);
             """
         )
 
@@ -517,6 +541,20 @@ def init_db(seed: bool = True) -> None:
                     (city, lat, lng, r["id"]),
                 )
 
+        # Jeśli seed=True i czat jest pusty, dodaj pierwsze wiadomości powitalne
+        if seed:
+            chat_count = conn.execute("SELECT COUNT(*) AS c FROM global_chat_messages").fetchone()["c"]
+            if chat_count == 0:
+                now_iso = datetime.now(timezone.utc).isoformat()
+                seed_messages = [
+                    (None, "Marek (Warszawa)", "Siemanko chłopy! Działa globalny czat na żywo z telefonu i komputera. 🤝", now_iso),
+                    (None, "Tomek (Wrocław)", "Potwierdzam, widać wiadomości natychmiastowo. Piszcie śmiało jak ktoś potrzebuje pomocy!", now_iso),
+                ]
+                conn.executemany(
+                    "INSERT INTO global_chat_messages (profile_id, author_name, message, created_at) VALUES (?, ?, ?, ?)",
+                    seed_messages,
+                )
+
         # Jeśli seed=True i łańcuch bloków jest pusty, zainicjalizuj historyczną księgę Chłopchaina
         if seed:
             count_blocks_row = conn.execute("SELECT COUNT(*) AS cnt FROM chlopocoin_blocks").fetchone()
@@ -592,14 +630,15 @@ def _insert_profile_in_tx(conn: sqlite3.Connection, data: Dict[str, Any]) -> int
     except (ValueError, TypeError):
         lng = None
     share_location = 1 if (data.get("share_location") or (lat is not None and lng is not None)) else 0
+    role = "admin" if is_admin_email(email) else "user"
 
     cur = conn.execute(
         """
         INSERT INTO profiles (
             name, name_normalized, email, password_hash, contact, bio,
-            location_name, lat, lng, share_location, created_at, updated_at
+            location_name, lat, lng, share_location, role, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             name,
@@ -612,6 +651,7 @@ def _insert_profile_in_tx(conn: sqlite3.Connection, data: Dict[str, Any]) -> int
             lat,
             lng,
             share_location,
+            role,
             now,
             now,
         ),
@@ -687,11 +727,17 @@ def _hydrate_profiles(conn: sqlite3.Connection, profile_rows: List[sqlite3.Row])
         except (ValueError, TypeError):
             lng = None
 
+        email_val = (r["email"] if "email" in row_keys else "") or ""
+        role_val = r["role"] if "role" in row_keys and r["role"] else None
+        if not role_val or is_admin_email(email_val):
+            role_val = "admin" if is_admin_email(email_val) else "user"
+
         hydrated.append(
             {
                 "id": pid,
                 "name": r["name"],
-                "email": r["email"] if "email" in row_keys else "",
+                "email": email_val,
+                "role": role_val,
                 "has_password": bool(pwd_hash),
                 "can_help": by_profile[pid]["can_help"],
                 "need_help": by_profile[pid]["need_help"],
@@ -912,12 +958,13 @@ def update_profile(profile_id: int, data: Dict[str, Any]) -> Optional[Dict[str, 
         except (ValueError, TypeError):
             lng = None
         share_location = 1 if (data.get("share_location") or (lat is not None and lng is not None)) else 0
+        role = "admin" if is_admin_email(email) else "user"
 
         conn.execute(
             """
             UPDATE profiles
             SET name = ?, name_normalized = ?, email = ?, password_hash = ?, contact = ?, bio = ?,
-                location_name = ?, lat = ?, lng = ?, share_location = ?, updated_at = ?
+                location_name = ?, lat = ?, lng = ?, share_location = ?, role = ?, updated_at = ?
             WHERE id = ?
             """,
             (
@@ -931,6 +978,7 @@ def update_profile(profile_id: int, data: Dict[str, Any]) -> Optional[Dict[str, 
                 lat,
                 lng,
                 share_location,
+                role,
                 now,
                 profile_id,
             ),
@@ -1521,3 +1569,80 @@ def get_chlopocoin_rankings(query: str = "", limit: int = 100) -> Dict[str, Any]
             "leaderboard": leaderboard,
             "top_three": leaderboard[:3],
         }
+
+
+def create_chat_message(
+    message: str,
+    author_name: str = "",
+    profile_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    cleaned_msg = str(message or "").strip()
+    if not cleaned_msg:
+        raise ProfileValidationError("Treść wiadomości nie może być pusta.")
+    if len(cleaned_msg) > 1000:
+        cleaned_msg = cleaned_msg[:1000]
+
+    effective_author = str(author_name or "").strip()
+    with get_db() as conn:
+        if profile_id:
+            row = conn.execute("SELECT name FROM profiles WHERE id = ?", (profile_id,)).fetchone()
+            if row and row["name"]:
+                effective_author = row["name"]
+        if not effective_author:
+            effective_author = "Chłop"
+
+        now_str = datetime.now(timezone.utc).isoformat()
+        cur = conn.execute(
+            """
+            INSERT INTO global_chat_messages (profile_id, author_name, message, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (profile_id, effective_author, cleaned_msg, now_str),
+        )
+        msg_id = cur.lastrowid
+        return {
+            "id": msg_id,
+            "profile_id": profile_id,
+            "author_name": effective_author,
+            "message": cleaned_msg,
+            "created_at": now_str,
+        }
+
+
+def list_chat_messages(limit: int = 50, since_id: int = 0) -> List[Dict[str, Any]]:
+    with get_db() as conn:
+        if since_id > 0:
+            rows = conn.execute(
+                """
+                SELECT id, profile_id, author_name, message, created_at
+                FROM global_chat_messages
+                WHERE id > ?
+                ORDER BY id ASC
+                LIMIT ?
+                """,
+                (since_id, max(1, min(200, limit))),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT id, profile_id, author_name, message, created_at
+                FROM global_chat_messages
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (max(1, min(200, limit)),),
+            ).fetchall()
+            rows = list(reversed(rows))
+
+        result = []
+        for r in rows:
+            result.append(
+                {
+                    "id": r["id"],
+                    "profile_id": r["profile_id"],
+                    "author_name": r["author_name"],
+                    "message": r["message"],
+                    "created_at": r["created_at"],
+                }
+            )
+        return result

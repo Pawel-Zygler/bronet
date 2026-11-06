@@ -15,6 +15,7 @@ class ProfilePayload(BaseModel):
     lat: Optional[float] = Field(default=None)
     lng: Optional[float] = Field(default=None)
     share_location: Optional[bool] = Field(default=False)
+    role: Optional[str] = Field(default="user")
 
 
 class LoginPayload(BaseModel):
@@ -53,5 +54,20 @@ class ProfileResponse(BaseModel):
     lng: Optional[float] = None
     share_location: Optional[bool] = False
     chlopocoin_balance: Optional[int] = 0
+    role: str = "user"
     created_at: str
     updated_at: str
+
+
+class ChatMessagePayload(BaseModel):
+    message: str = Field(..., min_length=1, max_length=1000)
+    author_name: Optional[str] = Field(default="", max_length=80)
+    profile_id: Optional[int] = None
+
+
+class ChatMessageResponse(BaseModel):
+    id: int
+    message: str
+    author_name: str
+    profile_id: Optional[int] = None
+    created_at: str

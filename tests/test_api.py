@@ -12,6 +12,7 @@ from app.database import (
     ProfileValidationError,
     authenticate_profile_by_email,
     confirm_chlop_help,
+    create_chat_message,
     create_profile,
     delete_profile,
     get_chlopocoin_rankings,
@@ -24,6 +25,7 @@ from app.database import (
     init_db,
     is_female_email,
     is_female_name,
+    list_chat_messages,
     list_profiles,
     update_profile,
     verify_chlopchain_integrity,
@@ -409,6 +411,78 @@ class BronetBackendTest(unittest.TestCase):
         self.assertEqual(defaults["max_tps"], 5)
         self.assertEqual(defaults["interval_seconds"], 1.0)
         self.assertEqual(defaults["daily_pool_pct"], 60)
+
+    def test_global_chat_persistence_and_listing(self) -> None:
+        """Weryfikuje globalny czat chłopów (tworzenie i pobieranie wiadomości)."""
+        initial_messages = list_chat_messages(limit=20)
+        self.assertGreaterEqual(len(initial_messages), 2)
+        self.assertTrue(any("Siemanko" in m["message"] for m in initial_messages))
+
+        # Dodaj wiadomość od usera
+        created = create_chat_message(
+            message="Testowa wiadomość z telefonu 📱",
+            author_name="Janusz",
+        )
+        self.assertEqual(created["author_name"], "Janusz")
+        self.assertEqual(created["message"], "Testowa wiadomość z telefonu 📱")
+
+        after_messages = list_chat_messages(limit=10)
+        self.assertTrue(any(m["id"] == created["id"] for m in after_messages))
+
+        # Test walidacji pustej wiadomości
+        with self.assertRaises(ProfileValidationError):
+            create_chat_message(message="   ")
+
+    def test_account_roles_admin_and_user_and_permissions(self) -> None:
+        """
+        Weryfikuje role w kontach:
+        - pawel.zygler@gmail.com otrzymuje rolę 'admin'
+        - Inne profile otrzymują rolę 'user'
+        - Zwykły user nie może nadać sobie uprawnień admina
+        - Kontrolki ekonomii wymagają uprawnień admina (403 vs 200)
+        """
+        from fastapi.testclient import TestClient
+        from app.main import app
+        from app.database import create_profile, get_profile, ADMIN_EMAIL
+
+        client = TestClient(app)
+
+        # 1. Zwykły profil
+        user_prof = create_profile({
+            "name": "Bogusław Zwykły",
+            "email": "boguslaw.user@bronet.test",
+            "password": "haslo123user",
+            "role": "admin", # Próba samozwańczego admina
+        })
+        self.assertEqual(user_prof["role"], "user")
+
+        # 2. Profil administratora
+        admin_prof = create_profile({
+            "name": "Paweł Zygler",
+            "email": "pawel.zygler@gmail.com",
+            "password": "adminhaslo123",
+        })
+        self.assertEqual(admin_prof["role"], "admin")
+        self.assertEqual(admin_prof["email"], "pawel.zygler@gmail.com")
+
+        # 3. Kontrolki ekonomii bez uprawnień -> 403 Forbidden
+        res_no_auth = client.post("/api/chlopocoin/simulator/tick")
+        self.assertEqual(res_no_auth.status_code, 403)
+        self.assertIn("Brak uprawnień", res_no_auth.json()["detail"])
+
+        res_user_auth = client.post(
+            "/api/chlopocoin/simulator/tick",
+            headers={"X-Admin-Email": "boguslaw.user@bronet.test"},
+        )
+        self.assertEqual(res_user_auth.status_code, 403)
+
+        # 4. Kontrolki ekonomii z uprawnieniem admina -> 200 OK
+        res_admin_auth = client.post(
+            "/api/chlopocoin/simulator/tick",
+            headers={"X-Admin-Email": "pawel.zygler@gmail.com"},
+        )
+        self.assertEqual(res_admin_auth.status_code, 200)
+        self.assertIn("cycle_number", res_admin_auth.json())
 
 
 if __name__ == "__main__":

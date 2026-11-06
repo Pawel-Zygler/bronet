@@ -13,13 +13,25 @@ export async function apiGet(url, signal) {
 }
 
 export async function apiSend(url, method, body, extraHeaders = {}) {
+  const headers = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    ...extraHeaders,
+  };
+
+  try {
+    const rawAuth = localStorage.getItem("bronet_auth");
+    if (rawAuth) {
+      const parsed = JSON.parse(rawAuth);
+      if (parsed && (parsed.email === "pawel.zygler@gmail.com" || parsed.role === "admin")) {
+        headers["X-Admin-Email"] = parsed.email || "pawel.zygler@gmail.com";
+      }
+    }
+  } catch (_) {}
+
   const res = await fetch(url, {
     method,
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      ...extraHeaders,
-    },
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {

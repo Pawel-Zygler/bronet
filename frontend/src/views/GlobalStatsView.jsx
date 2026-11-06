@@ -1,7 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { apiGet, apiSend } from "../api";
 
-export function GlobalStatsView({ onOpenProfile, onNavigate }) {
+export function GlobalStatsView({ myProfile, onOpenProfile, onNavigate }) {
+  const isAdmin = Boolean(
+    myProfile?.role === "admin" ||
+      myProfile?.email?.trim().toLowerCase() === "pawel.zygler@gmail.com"
+  );
   const [stats, setStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -183,28 +187,31 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
   };
 
   return (
-    <div className="chlopchain-layout" id="global-stats-container">
-      {/* Mobile toggle button */}
-      <div className="chlopchain-mobile-bar">
-        <button
-          type="button"
-          id="btn-toggle-economy-sidebar"
-          className="btn btn-secondary btn-sm btn-economy-drawer-toggle"
-          onClick={() => setIsMobileSidebarOpen((prev) => !prev)}
-          aria-expanded={isMobileSidebarOpen}
-          aria-controls="chlopchain-sidebar"
-        >
-          <span>🎛️ {isMobileSidebarOpen ? "Zwiń kontrolki ekonomii" : "Parametry silnika ekonomii (suwaki)"}</span>
-          <span className="drawer-tps-pill">{stats?.simulator?.tps_range || `${minTps}-${maxTps} TPS`}</span>
-        </button>
-      </div>
+    <div className={`chlopchain-layout ${!isAdmin ? "no-sidebar" : ""}`} id="global-stats-container">
+      {/* Mobile toggle button (tylko dla admina) */}
+      {isAdmin && (
+        <div className="chlopchain-mobile-bar">
+          <button
+            type="button"
+            id="btn-toggle-economy-sidebar"
+            className="btn btn-secondary btn-sm btn-economy-drawer-toggle"
+            onClick={() => setIsMobileSidebarOpen((prev) => !prev)}
+            aria-expanded={isMobileSidebarOpen}
+            aria-controls="chlopchain-sidebar"
+          >
+            <span>🎛️ {isMobileSidebarOpen ? "Zwiń kontrolki ekonomii" : "Parametry silnika ekonomii (suwaki)"}</span>
+            <span className="drawer-tps-pill">{stats?.simulator?.tps_range || `${minTps}-${maxTps} TPS`}</span>
+          </button>
+        </div>
+      )}
 
-      {/* Left Sidebar z kontrolkami i suwakami */}
-      <aside
-        className={`chlopchain-sidebar ${isMobileSidebarOpen ? "is-open" : ""}`}
-        id="chlopchain-sidebar"
-        aria-label="Konsola sterowania parametrami ekonomii Chłopchain"
-      >
+      {/* Left Sidebar z kontrolkami i suwakami (tylko dla admina pawel.zygler@gmail.com) */}
+      {isAdmin && (
+        <aside
+          className={`chlopchain-sidebar ${isMobileSidebarOpen ? "is-open" : ""}`}
+          id="chlopchain-sidebar"
+          aria-label="Konsola sterowania parametrami ekonomii Chłopchain"
+        >
         <div className="sidebar-sticky-inner">
           <div className="sidebar-header">
             <div className="sidebar-title-row">
@@ -446,6 +453,7 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
           </div>
         </div>
       </aside>
+      )}
 
       {/* Główna zawartość statystyk */}
       <div className="chlopchain-main-content global-stats-view">
@@ -456,6 +464,15 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
             <span className="chain-pulse-dot" aria-hidden="true" />
             <span>Ekonomia Blockchain • Chłopchain</span>
           </div>
+          {isAdmin ? (
+            <div className="admin-status-pill" id="admin-indicator-badge">
+              🛡️ Administrator Ekonomii ({myProfile?.email || "pawel.zygler@gmail.com"}) — kontrolki aktywne
+            </div>
+          ) : (
+            <div className="view-mode-pill" id="guest-indicator-badge">
+              🌐 Tryb podglądu sieci (kontrolki ekonomii zastrzeżone dla administratora)
+            </div>
+          )}
           <h1 id="stats-heading">Chłopchain — Sieć Wzajemnej Pomocy</h1>
           <p className="global-stats-lead">
             Zdecentralizowana sieć wzajemnej chłopskiej pomocy. Każdy Chłopocoin (🪙 CC) powstaje
@@ -848,6 +865,7 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
                     {visibleBlocksCount < stats.blocks.length && (
                       <button
                         type="button"
+                        id="btn-load-all-blocks"
                         className="btn btn-outline btn-sm"
                         onClick={() => setVisibleBlocksCount(stats.blocks.length)}
                       >

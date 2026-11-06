@@ -19,6 +19,7 @@ if (process.env.CURRENTS_RECORD_KEY && process.env.CURRENTS_PROJECT_ID) {
 module.exports = defineConfig({
   testDir: "./e2e",
   timeout: 60_000,
+  workers: process.env.CI ? 2 : 3,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 1,

@@ -1,5 +1,6 @@
 import React, { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import { apiGet } from "./api";
+import { GlobalChat } from "./components/GlobalChat";
 import { MobileNav } from "./components/MobileNav";
 import { Topbar } from "./components/Topbar";
 import { GlobalStatsView } from "./views/GlobalStatsView";
@@ -380,6 +381,7 @@ export function App() {
 
         {(route.view === "chlopchain" || route.view === "stats") && (
           <GlobalStatsView
+            myProfile={myProfile}
             onOpenProfile={handleOpenProfile}
             onNavigate={navigate}
           />
@@ -428,6 +430,8 @@ export function App() {
           />
         )}
       </main>
+
+      <GlobalChat myProfile={myProfile} onOpenProfile={handleOpenProfile} />
 
       <MobileNav activeNav={route.nav} myProfile={myProfile} onNavigate={navigate} />
     </>

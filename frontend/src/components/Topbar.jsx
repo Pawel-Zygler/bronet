@@ -103,7 +103,9 @@ export function Topbar({
                 className={`nav-link ${activeNav === "profile" ? "is-active" : ""}`}
                 onClick={(e) => handleLink(e, "/profil")}
               >
-                {myProfile ? `Profil (${myProfile.name})` : "Profil"}
+                {myProfile
+                  ? `Profil (${myProfile.name})${myProfile.role === "admin" ? " 🛡️ Admin" : ""}`
+                  : "Profil"}
               </a>
               {myProfile && (
                 <button type="button" className="nav-link nav-btn" onClick={onLogout}>
