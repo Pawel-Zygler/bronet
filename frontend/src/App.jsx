@@ -2,6 +2,7 @@ import React, { startTransition, useCallback, useEffect, useRef, useState } from
 import { apiGet } from "./api";
 import { MobileNav } from "./components/MobileNav";
 import { Topbar } from "./components/Topbar";
+import { GlobalStatsView } from "./views/GlobalStatsView";
 import { HomeView } from "./views/HomeView";
 import { MatchingView } from "./views/MatchingView";
 import { ProfileDetailView } from "./views/ProfileDetailView";
@@ -30,6 +31,9 @@ function parseRoute(pathname) {
   }
   if (pathname === "/dopasowania") {
     return { view: "matches", nav: "matches", profileId: null };
+  }
+  if (pathname === "/statystyki" || pathname === "/mapa") {
+    return { view: "stats", nav: "stats", profileId: null };
   }
   const match = pathname.match(/^\/profil\/(\d+)$/);
   if (match) {
@@ -149,8 +153,8 @@ export function App() {
 
   useEffect(() => {
     if (pathname === "/mapa") {
-      window.history.replaceState({}, "", "/");
-      setPathname("/");
+      window.history.replaceState({}, "", "/statystyki");
+      setPathname("/statystyki");
     }
   }, [pathname]);
 
@@ -355,6 +359,13 @@ export function App() {
             onOpenProfile={handleOpenProfile}
             onNavigate={navigate}
             profiles={profiles}
+          />
+        )}
+
+        {route.view === "stats" && (
+          <GlobalStatsView
+            onOpenProfile={handleOpenProfile}
+            onNavigate={navigate}
           />
         )}
 

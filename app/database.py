@@ -363,6 +363,10 @@ def init_db(seed: bool = True) -> None:
                 ON chlopocoin_confirmations(from_profile_id, to_profile_id);
             CREATE INDEX IF NOT EXISTS idx_chlopocoin_blocks_profiles
                 ON chlopocoin_blocks(profile_a_id, profile_b_id);
+            CREATE INDEX IF NOT EXISTS idx_chlopocoin_blocks_index
+                ON chlopocoin_blocks(block_index);
+            CREATE INDEX IF NOT EXISTS idx_profiles_chlopocoin
+                ON profiles(chlopocoin_balance);
             """
         )
 
@@ -443,6 +447,49 @@ def init_db(seed: bool = True) -> None:
                     "UPDATE profiles SET location_name = ?, lat = ?, lng = ?, share_location = 1 WHERE id = ?",
                     (city, lat, lng, r["id"]),
                 )
+
+        # Jeśli seed=True i łańcuch bloków jest pusty, zainicjalizuj historyczną księgę Chłopchaina
+        if seed:
+            count_blocks_row = conn.execute("SELECT COUNT(*) AS cnt FROM chlopocoin_blocks").fetchone()
+            if count_blocks_row and count_blocks_row["cnt"] == 0:
+                seed_profs = conn.execute("SELECT id, name FROM profiles ORDER BY id ASC LIMIT 16").fetchall()
+                if len(seed_profs) >= 8:
+                    history_pairs = [
+                        (seed_profs[0]["id"], seed_profs[1]["id"], "2026-11-01T10:15:00+00:00"),
+                        (seed_profs[2]["id"], seed_profs[3]["id"], "2026-11-02T12:30:00+00:00"),
+                        (seed_profs[4]["id"], seed_profs[5]["id"], "2026-11-03T14:45:00+00:00"),
+                        (seed_profs[6]["id"], seed_profs[7]["id"], "2026-11-04T09:20:00+00:00"),
+                        (seed_profs[0]["id"], seed_profs[2]["id"], "2026-11-04T16:10:00+00:00"),
+                        (seed_profs[1]["id"], seed_profs[3]["id"], "2026-11-05T11:05:00+00:00"),
+                    ]
+                    prev_hash = "0" * 64
+                    for idx, (p_from, p_to, timestamp) in enumerate(history_pairs, start=1):
+                        p1, p2 = min(p_from, p_to), max(p_from, p_to)
+                        conn.execute(
+                            "INSERT OR IGNORE INTO chlopocoin_confirmations (from_profile_id, to_profile_id, created_at) VALUES (?, ?, ?)",
+                            (p1, p2, timestamp),
+                        )
+                        conn.execute(
+                            "INSERT OR IGNORE INTO chlopocoin_confirmations (from_profile_id, to_profile_id, created_at) VALUES (?, ?, ?)",
+                            (p2, p1, timestamp),
+                        )
+                        payload = f"{idx}:{prev_hash}:{p1}:{p2}:{timestamp}:proof_of_chlop_help"
+                        b_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+                        conn.execute(
+                            "INSERT INTO chlopocoin_blocks (block_index, profile_a_id, profile_b_id, block_hash, prev_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                            (idx, p1, p2, b_hash, prev_hash, timestamp),
+                        )
+                        conn.execute(
+                            "UPDATE profiles SET chlopocoin_balance = chlopocoin_balance + 1 WHERE id IN (?, ?)",
+                            (p1, p2),
+                        )
+                        prev_hash = b_hash
+
+                    if len(seed_profs) >= 6:
+                        conn.execute(
+                            "INSERT OR IGNORE INTO chlopocoin_confirmations (from_profile_id, to_profile_id, created_at) VALUES (?, ?, ?)",
+                            (seed_profs[5]["id"], seed_profs[0]["id"], "2026-11-05T18:00:00+00:00"),
+                        )
 
         invalidate_profiles_cache()
 
@@ -1157,5 +1204,171 @@ def get_chlopocoin_stats(profile_id: int) -> Dict[str, Any]:
             "waiting_for_them": [dict(r) for r in waiting_for_them],
             "waiting_for_me_count": len(waiting_for_me),
             "waiting_for_me": [dict(r) for r in waiting_for_me],
+            "blocks": blocks,
+        }
+
+
+def verify_chlopchain_integrity() -> Dict[str, Any]:
+    with get_db() as conn:
+        blocks = conn.execute(
+            """
+            SELECT block_index, profile_a_id, profile_b_id, block_hash, prev_hash, created_at
+            FROM chlopocoin_blocks
+            ORDER BY block_index ASC
+            """
+        ).fetchall()
+
+        if not blocks:
+            return {
+                "is_valid": True,
+                "verified_blocks": 0,
+                "message": "Łańcuch bloków jest gotowy do zapisu pierwszego bloku.",
+            }
+
+        expected_prev = "0" * 64
+        for b in blocks:
+            idx = b["block_index"]
+            p1 = min(b["profile_a_id"], b["profile_b_id"])
+            p2 = max(b["profile_a_id"], b["profile_b_id"])
+            ts = b["created_at"]
+            prev = b["prev_hash"]
+
+            if prev != expected_prev:
+                return {
+                    "is_valid": False,
+                    "verified_blocks": idx - 1,
+                    "error": f"Naruszenie prev_hash w bloku #{idx}: oczekiwano {expected_prev[:12]}..., znaleziono {prev[:12]}...",
+                }
+
+            payload = f"{idx}:{prev}:{p1}:{p2}:{ts}:proof_of_chlop_help"
+            calc_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+            if calc_hash != b["block_hash"]:
+                return {
+                    "is_valid": False,
+                    "verified_blocks": idx - 1,
+                    "error": f"Naruszenie hasza w bloku #{idx}: obliczono {calc_hash[:12]}..., w bazie {b['block_hash'][:12]}...",
+                }
+
+            expected_prev = b["block_hash"]
+
+        return {
+            "is_valid": True,
+            "verified_blocks": len(blocks),
+            "message": f"Kryptograficzna integralność sieci Chłopchain potwierdzona: {len(blocks)} bloków zweryfikowanych poprawnie ✓",
+        }
+
+
+def get_global_chlopocoin_stats() -> Dict[str, Any]:
+    with get_db() as conn:
+        supply_row = conn.execute(
+            "SELECT COALESCE(SUM(chlopocoin_balance), 0) AS total_supply FROM profiles"
+        ).fetchone()
+        total_supply = int(supply_row["total_supply"]) if supply_row else 0
+
+        blocks_count_row = conn.execute(
+            "SELECT COUNT(*) AS cnt FROM chlopocoin_blocks"
+        ).fetchone()
+        total_blocks = int(blocks_count_row["cnt"]) if blocks_count_row else 0
+
+        holders_row = conn.execute(
+            "SELECT COUNT(*) AS cnt FROM profiles WHERE chlopocoin_balance > 0"
+        ).fetchone()
+        holders_count = int(holders_row["cnt"]) if holders_row else 0
+
+        profiles_count_row = conn.execute(
+            "SELECT COUNT(*) AS cnt FROM profiles"
+        ).fetchone()
+        total_profiles = int(profiles_count_row["cnt"]) if profiles_count_row else 0
+
+        mempool_rows = conn.execute(
+            """
+            SELECT c.id, c.from_profile_id, pa.name as from_name, pa.location_name as from_location,
+                   c.to_profile_id, pb.name as to_name, pb.location_name as to_location,
+                   c.created_at
+            FROM chlopocoin_confirmations c
+            JOIN profiles pa ON pa.id = c.from_profile_id
+            JOIN profiles pb ON pb.id = c.to_profile_id
+            WHERE NOT EXISTS (
+                SELECT 1 FROM chlopocoin_confirmations c2
+                WHERE c2.from_profile_id = c.to_profile_id AND c2.to_profile_id = c.from_profile_id
+            )
+            ORDER BY c.id DESC
+            LIMIT 50
+            """
+        ).fetchall()
+
+        leaderboard_rows = conn.execute(
+            """
+            SELECT *
+            FROM profiles
+            WHERE chlopocoin_balance > 0
+            ORDER BY chlopocoin_balance DESC, id ASC
+            LIMIT 50
+            """
+        ).fetchall()
+
+        leaderboard = []
+        if leaderboard_rows:
+            hydrated = _hydrate_profiles(conn, leaderboard_rows)
+            for p in hydrated:
+                leaderboard.append(
+                    {
+                        "id": p["id"],
+                        "name": p["name"],
+                        "location_name": p.get("location_name") or "Polska",
+                        "chlopocoin_balance": p.get("chlopocoin_balance", 0),
+                        "can_help": p.get("can_help", []),
+                        "need_help": p.get("need_help", []),
+                        "created_at": p.get("created_at"),
+                    }
+                )
+
+        blocks_rows = conn.execute(
+            """
+            SELECT b.id, b.block_index, b.block_hash, b.prev_hash, b.created_at,
+                   b.profile_a_id, b.profile_b_id,
+                   pa.name as profile_a_name, pa.location_name as profile_a_location,
+                   pb.name as profile_b_name, pb.location_name as profile_b_location
+            FROM chlopocoin_blocks b
+            JOIN profiles pa ON pa.id = b.profile_a_id
+            JOIN profiles pb ON pb.id = b.profile_b_id
+            ORDER BY b.block_index DESC
+            LIMIT 100
+            """
+        ).fetchall()
+
+        blocks = []
+        for br in blocks_rows:
+            blocks.append(
+                {
+                    "block_index": br["block_index"],
+                    "block_hash": br["block_hash"],
+                    "prev_hash": br["prev_hash"],
+                    "created_at": br["created_at"],
+                    "profile_a_id": br["profile_a_id"],
+                    "profile_a_name": br["profile_a_name"],
+                    "profile_a_location": br["profile_a_location"] or "Polska",
+                    "profile_b_id": br["profile_b_id"],
+                    "profile_b_name": br["profile_b_name"],
+                    "profile_b_location": br["profile_b_location"] or "Polska",
+                    "reward_per_participant": 1,
+                    "reward_total": 2,
+                }
+            )
+
+        latest_hash = blocks[0]["block_hash"] if blocks else "0" * 64
+        integrity = verify_chlopchain_integrity()
+
+        return {
+            "total_supply": total_supply,
+            "total_blocks": total_blocks,
+            "total_helps": total_blocks,
+            "active_holders_count": holders_count,
+            "total_profiles_count": total_profiles,
+            "pending_confirmations_count": len(mempool_rows),
+            "latest_block_hash": latest_hash,
+            "chain_integrity": integrity,
+            "leaderboard": leaderboard,
+            "mempool": [dict(m) for m in mempool_rows],
             "blocks": blocks,
         }

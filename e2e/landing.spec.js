@@ -423,6 +423,50 @@ test.describe("Landing & Search", () => {
   );
 
   test(
+    "zakładka Statystyki (/statystyki): prezentuje globalne statystyki Chłopocoinów, księgę bloków Chłopchain i ranking",
+    { tag: ["@smoke", "@regression"] },
+    async ({ page }) => {
+      // 1. Otwarcie strony głównej i kliknięcie 'Statystyki' w nawigacji
+      await page.goto("/");
+      const statsLink = page.locator("#nav-link-stats");
+      await expect(statsLink).toBeVisible();
+      await statsLink.click();
+
+      // 2. Weryfikacja URL i nagłówka
+      await expect(page).toHaveURL("/statystyki");
+      await expect(page.locator("#stats-heading")).toHaveText("Globalne Statystyki Chłopocoinów");
+
+      // 3. Weryfikacja integralności łańcucha i metryk sieci
+      await expect(page.locator("#stats-chain-integrity")).toBeVisible();
+      await expect(page.locator("#stats-chain-integrity")).toContainText("Integralność sieci potwierdzona kryptograficznie");
+      await expect(page.locator("#global-stats-supply")).toBeVisible();
+      await expect(page.locator("#global-stats-blocks")).toBeVisible();
+      await expect(page.locator("#global-stats-helps")).toBeVisible();
+
+      // 4. Weryfikacja tabeli księgi bloków
+      await expect(page.locator("#global-stats-blocks-ledger")).toBeVisible();
+      await expect(page.locator("#global-stats-blocks-ledger")).toContainText("Konsensus 2/2");
+
+      // 5. Przełączenie na zakładkę 'Ranking Pomocnych Chłopów'
+      await page.locator("#tab-btn-leaderboard").click();
+      await expect(page.locator("#global-stats-leaderboard")).toBeVisible();
+
+      // 6. Przełączenie na zakładkę 'Mempool'
+      await page.locator("#tab-btn-mempool").click();
+      await expect(page.locator("#panel-stats-mempool")).toBeVisible();
+
+      // 7. Przycisk 'Odśwież dane'
+      const refreshBtn = page.locator("#btn-refresh-stats");
+      await expect(refreshBtn).toBeVisible();
+      await refreshBtn.click();
+
+      // 8. Weryfikacja przekierowania ze starego adresu /mapa -> /statystyki
+      await page.goto("/mapa");
+      await expect(page).toHaveURL("/statystyki");
+    }
+  );
+
+  test(
     "rozdział 1.7: obopólne przyznanie Chłopocoina (konsensus 2/2) i weryfikacja w zakładce Statystyki (ekonomia blockchain)",
     { tag: ["@smoke", "@regression"] },
     async ({ page, request }) => {

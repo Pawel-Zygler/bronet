@@ -16,6 +16,7 @@ from app.database import (
     delete_profile,
     get_chlopocoin_stats,
     get_chlopocoin_status,
+    get_global_chlopocoin_stats,
     get_matches_for_profile,
     get_profile,
     get_skills_catalog,
@@ -24,6 +25,7 @@ from app.database import (
     is_female_name,
     list_profiles,
     update_profile,
+    verify_chlopchain_integrity,
 )
 
 
@@ -311,6 +313,18 @@ class BronetBackendTest(unittest.TestCase):
         res3 = confirm_chlop_help(chlop_a["id"], chlop_b["id"], "pw_a")
         self.assertEqual(res3["status"], "already_settled")
         self.assertTrue(res3["mutual_settled"])
+
+        # 7. Weryfikacja globalnych statystyk sieci Chłopchain
+        global_stats = get_global_chlopocoin_stats()
+        self.assertGreaterEqual(global_stats["total_supply"], 2)
+        self.assertGreaterEqual(global_stats["total_blocks"], 1)
+        self.assertGreaterEqual(global_stats["active_holders_count"], 2)
+        self.assertTrue(global_stats["chain_integrity"]["is_valid"])
+        self.assertGreaterEqual(len(global_stats["blocks"]), 1)
+        # Obaj chłopi są obecni w rankingu
+        leaderboard_ids = [p["id"] for p in global_stats["leaderboard"]]
+        self.assertIn(chlop_a["id"], leaderboard_ids)
+        self.assertIn(chlop_b["id"], leaderboard_ids)
 
 
 if __name__ == "__main__":

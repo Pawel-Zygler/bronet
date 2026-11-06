@@ -79,6 +79,15 @@ export function Topbar({
                 Dopasowania
               </a>
               <a
+                href="/statystyki"
+                id="nav-link-stats"
+                aria-current={activeNav === "stats" ? "page" : undefined}
+                className={`nav-link ${activeNav === "stats" ? "is-active" : ""}`}
+                onClick={(e) => handleLink(e, "/statystyki")}
+              >
+                Statystyki
+              </a>
+              <a
                 href="/profil"
                 aria-current={activeNav === "profile" ? "page" : undefined}
                 className={`nav-link ${activeNav === "profile" ? "is-active" : ""}`}
