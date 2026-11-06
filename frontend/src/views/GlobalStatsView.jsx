@@ -519,3 +519,4 @@ export function GlobalStatsView({ onOpenProfile, onNavigate }) {
     </div>
   );
 }
+

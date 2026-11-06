@@ -467,7 +467,7 @@ test.describe("Landing & Search", () => {
   );
 
   test(
-    "rozdział 1.7: obopólne przyznanie Chłopocoina (konsensus 2/2) i weryfikacja w zakładce Statystyki (ekonomia blockchain)",
+    "smoke: po wypełnionej usłudze obaj chłopi przyciskają 'coina' na profilu i każdy otrzymuje po chłopocoinie (+1 CC dla obu w profilu i sieci)",
     { tag: ["@smoke", "@regression"] },
     async ({ page, request }) => {
       const uid = `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
@@ -492,7 +492,7 @@ test.describe("Landing & Search", () => {
       const createdIds = [];
 
       try {
-        // 1. Rejestracja profili przez API
+        // 1. Rejestracja profili przez API (umówieni na wzajemną pomoc)
         const resA = await request.post("/api/profiles", { data: userA });
         expect(resA.ok()).toBeTruthy();
         const profA = await resA.json();
@@ -510,13 +510,13 @@ test.describe("Landing & Search", () => {
         await page.locator("#login-password").press("Enter");
         await expect(page.locator(".desktop-nav")).toContainText(`Profil (${userA.name})`);
 
-        // 3. Wojtek odwiedza stronę profilu Mirka (Chłop B)
+        // 3. Wojtek odwiedza stronę profilu Mirka (Chłop B) po wykonanej usłudze
         await page.goto(`/profil/${profB.id}`);
         await expect(page.locator("#detail-heading")).toHaveText(userB.name);
         const actionBoxA = page.locator("#chlopocoin-action-box");
         await expect(actionBoxA).toBeVisible();
 
-        // Wojtek klika przycisk 'coina' (potwierdzenie 1/2)
+        // Wojtek klika przycisk 'coina' (potwierdzenie 1/2 po wykonanej usłudze)
         const coinBtnA = page.locator("#btn-grant-chlopocoin");
         await expect(coinBtnA).toBeVisible();
         await coinBtnA.click();
@@ -540,36 +540,84 @@ test.describe("Landing & Search", () => {
         await page.goto(`/profil/${profA.id}`);
         await expect(page.locator("#detail-heading")).toHaveText(userA.name);
 
-        // Mirek widzi informację, że Wojtek już potwierdził
+        // Mirek widzi informację, że Wojtek już potwierdził pomoc
         await expect(page.locator("#chlopocoin-ready-box")).toBeVisible();
         await expect(page.locator("#chlopocoin-ready-box")).toContainText("Wojtek");
 
-        // Mirek klika przycisk coina -> KONSENSUS 2/2!
+        // Mirek klika przycisk coina -> KONSENSUS 2/2 OSIĄGNIĘTY!
         const coinBtnB = page.locator("#btn-grant-chlopocoin");
         await expect(coinBtnB).toBeVisible();
         await coinBtnB.click();
 
-        // Sukces: blok zatwierdzony w sieci Chłopchain, obaj dostali coin
+        // Sukces: blok zatwierdzony w sieci Chłopchain, obaj dostali po coinie
         await expect(page.locator("#chlopocoin-settled-box")).toBeVisible();
         await expect(page.locator("#chlopocoin-settled-box")).toContainText("Chłopocoin przyznany obu profilom (2/2)");
 
-        // 7. Mirek przechodzi do swojego profilu i otwiera zakładkę 'Statystyki'
+        // 7. Weryfikacja Mirka: przechodzi do swojego profilu i otwiera zakładkę 'Statystyki'
         await page.goto("/profil");
-        const statsTab = page.locator("#editor-tab-stats");
-        await expect(statsTab).toBeVisible();
-        await statsTab.click();
+        const statsTabB = page.locator("#editor-tab-stats");
+        await expect(statsTabB).toBeVisible();
+        await statsTabB.click();
 
-        // Weryfikacja salda Chłopocoinów
+        // Saldo Mirka wynosi 1 CC
         await expect(page.locator("#editor-panel-stats")).toBeVisible();
-        const coinBalance = page.locator("#stats-coin-balance");
-        await expect(coinBalance).toBeVisible();
-        await expect(coinBalance).toHaveText("1");
+        const coinBalanceB = page.locator("#stats-coin-balance");
+        await expect(coinBalanceB).toBeVisible();
+        await expect(coinBalanceB).toHaveText("1");
 
-        // Weryfikacja księgi bloków
-        const ledger = page.locator("#stats-blocks-ledger");
-        await expect(ledger).toBeVisible();
-        await expect(ledger).toContainText(userA.name);
-        await expect(ledger).toContainText("+1 🪙 CC");
+        // W księdze bloków Mirka widnieje Wojtek z nagrodą +1 CC
+        const ledgerB = page.locator("#stats-blocks-ledger");
+        await expect(ledgerB).toBeVisible();
+        await expect(ledgerB).toContainText(userA.name);
+        await expect(ledgerB).toContainText("+1 🪙 CC");
+
+        // 8. Wylogowanie Mirka
+        await page.locator(".desktop-nav button", { hasText: "Wyloguj" }).click();
+        await page.goto("/profil");
+        await expect(page.locator("#login-email")).toBeVisible();
+
+        // 9. Ponowne logowanie Wojtka (Chłop A) i weryfikacja, że ON RÓWNIEŻ OTRZYMAŁ COINA
+        await page.locator("#login-email").fill(userA.email);
+        await page.locator("#login-password").fill(testPw);
+        await page.locator("#login-password").press("Enter");
+        await expect(page.locator(".desktop-nav")).toContainText(`Profil (${userA.name})`);
+
+        // Wojtek sprawdza swoje saldo w zakładce 'Statystyki'
+        await page.goto("/profil");
+        const statsTabA = page.locator("#editor-tab-stats");
+        await expect(statsTabA).toBeVisible();
+        await statsTabA.click();
+
+        // Saldo Wojtka również wynosi 1 CC (każdy profil dostał po coinie!)
+        const coinBalanceA = page.locator("#stats-coin-balance");
+        await expect(coinBalanceA).toBeVisible();
+        await expect(coinBalanceA).toHaveText("1");
+
+        // W księdze bloków Wojtka widnieje Mirek z nagrodą +1 CC
+        const ledgerA = page.locator("#stats-blocks-ledger");
+        await expect(ledgerA).toBeVisible();
+        await expect(ledgerA).toContainText(userB.name);
+        await expect(ledgerA).toContainText("+1 🪙 CC");
+
+        // 10. Weryfikacja w globalnej zakładce 'Statystyki' (/statystyki)
+        const globalStatsNav = page.locator("#nav-link-stats");
+        await expect(globalStatsNav).toBeVisible();
+        await globalStatsNav.click();
+        await expect(page).toHaveURL("/statystyki");
+
+        // Nowo wykopany blok jest w księdze globalnej
+        const globalLedger = page.locator("#global-stats-blocks-ledger");
+        await expect(globalLedger).toBeVisible();
+        await expect(globalLedger).toContainText(userA.name);
+        await expect(globalLedger).toContainText(userB.name);
+        await expect(globalLedger).toContainText("+2 🪙 CC");
+
+        // Obaj chłopi pojawiają się w rankingu pomocnych chłopów
+        await page.locator("#tab-btn-leaderboard").click();
+        const leaderboard = page.locator("#global-stats-leaderboard");
+        await expect(leaderboard).toBeVisible();
+        await expect(leaderboard).toContainText(userA.name);
+        await expect(leaderboard).toContainText(userB.name);
       } finally {
         for (const id of createdIds) {
           await request.delete(`/api/profiles/${id}`, {
