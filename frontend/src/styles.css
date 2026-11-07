@@ -1674,6 +1674,53 @@ html {
   font-size: 1.1rem;
 }
 
+.profile-coin-pill.clickable-pill {
+  cursor: pointer;
+  border: 1px solid #f59e0b;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.profile-coin-pill.clickable-pill:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(217, 119, 6, 0.35));
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+.card-coin-pill {
+  padding: 2px 8px;
+  font-size: 0.78rem;
+  border-radius: 9999px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #b45309;
+}
+
+.card-coin-pill strong {
+  font-size: 0.85rem;
+  color: #92400e;
+}
+
+.ledger-header-flex {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.ledger-global-link {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #2563eb;
+  text-decoration: underline;
+  transition: color 0.15s ease;
+}
+
+.ledger-global-link:hover {
+  color: #1d4ed8;
+}
+
 /* Karta akcji Chłopocoina na profilu chłopa */
 .chlopocoin-action-card {
   margin: 16px 0 24px 0;

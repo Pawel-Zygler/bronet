@@ -11,7 +11,7 @@ const EDITOR_TABS = [
   { key: "location", label: "Lokalizacja" },
   { key: "contact", label: "Kontakt" },
   { key: "bio", label: "O mnie" },
-  { key: "stats", label: "Statystyki" },
+  { key: "stats", label: "🪙 Portfel Coinów" },
   { key: "auth", label: "Dane logowania" },
 ];
 

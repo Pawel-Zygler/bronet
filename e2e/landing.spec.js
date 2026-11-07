@@ -663,10 +663,9 @@ test.describe("Landing & Search", () => {
         const globalLedger = page.locator("#global-stats-blocks-ledger");
         await expect(globalLedger).toBeVisible();
         const loadAllBtn = page.locator("#btn-load-all-blocks");
-        try {
-          await loadAllBtn.waitFor({ state: "visible", timeout: 3000 });
+        if (await loadAllBtn.isVisible()) {
           await loadAllBtn.click();
-        } catch (_) {}
+        }
         await expect(globalLedger).toContainText(userA.name);
         await expect(globalLedger).toContainText(userB.name);
         await expect(globalLedger).toContainText("+2 🪙 CC");
@@ -825,6 +824,76 @@ test.describe("Landing & Search", () => {
 
       await contextA.close();
       await contextB.close();
+    }
+  );
+
+  test(
+    "smoke: portfel coinów i dashboard chłopchain na profilu każdego użytkownika",
+    { tag: ["@smoke", "@regression"] },
+    async ({ page, request }) => {
+      // 1. Utworzenie testowego profilu z coinami
+      const uniqueSuffix = Date.now().toString().slice(-4);
+      const testEmail = `chlop.portfel.${uniqueSuffix}@bronet.test`;
+      const res = await request.post("/api/profiles", {
+        data: {
+          name: `Zenek Portfelowy ${uniqueSuffix}`,
+          email: testEmail,
+          password: "haslo123wallet",
+          can_help: ["mechanika"],
+          need_help: ["spawanie"],
+        },
+      });
+      expect(res.ok()).toBeTruthy();
+      const prof = await res.json();
+
+      try {
+        // 2. Otwarcie profilu Zenka jako gość
+        await page.goto(`/profil/${prof.id}`);
+        await expect(page.locator("#detail-heading")).toHaveText(`Zenek Portfelowy ${uniqueSuffix}`);
+
+        // Pigułka monet w nagłówku profilu jest widoczna
+        const coinPill = page.locator("#detail-coin-pill");
+        await expect(coinPill).toBeVisible();
+
+        // Zakładka 'Portfel Coinów' jest obecna w liście zakładek profilu
+        const walletTab = page.locator("#detail-tab-wallet");
+        await expect(walletTab).toBeVisible();
+        await expect(walletTab).toContainText("Portfel Coinów");
+
+        // 3. Przełączenie do zakładki Portfel Coinów
+        await walletTab.click();
+        await expect(walletTab).toHaveAttribute("aria-selected", "true");
+
+        // Dashboard portfela jest widoczny
+        const walletPanel = page.locator("#detail-panel-wallet");
+        await expect(walletPanel).toBeVisible();
+
+        // Hero portfela z saldem
+        await expect(page.locator("#detail-wallet-hero")).toBeVisible();
+        await expect(page.locator("#detail-wallet-balance")).toBeVisible();
+
+        // Metryki portfela (saldo, wykopane bloki, oczekujące)
+        const metricsGrid = page.locator("#detail-wallet-metrics");
+        await expect(metricsGrid).toBeVisible();
+        await expect(page.locator("#detail-metric-balance")).toBeVisible();
+        await expect(page.locator("#detail-metric-completed")).toBeVisible();
+        await expect(page.locator("#detail-metric-pending")).toBeVisible();
+
+        // Księga bloków na profilu chłopa
+        const ledger = page.locator("#detail-blocks-ledger");
+        await expect(ledger).toBeVisible();
+        await expect(ledger).toContainText("Księga Rozproszona Chłopchain");
+
+        // Link do globalnej sieci Chłopchain
+        const globalLink = ledger.locator(".ledger-global-link");
+        await expect(globalLink).toBeVisible();
+        await globalLink.click();
+        await expect(page).toHaveURL("/chlopchain");
+      } finally {
+        await request.delete(`/api/profiles/${prof.id}`, {
+          data: { password: "haslo123wallet" },
+        });
+      }
     }
   );
 });

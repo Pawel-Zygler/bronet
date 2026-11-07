@@ -205,6 +205,7 @@ def api_chlopocoin_status(profile_id: int, other_id: int = Query(...)) -> dict:
 
 
 @app.get("/api/profiles/{profile_id}/chlopocoin-stats")
+@app.get("/api/chlopocoin/stats/{profile_id}")
 def api_chlopocoin_stats(profile_id: int) -> dict:
     prof = get_profile(profile_id)
     if not prof:

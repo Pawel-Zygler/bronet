@@ -420,6 +420,8 @@ export function App() {
             onCacheProfile={handleCacheProfile}
             onBackToSearch={() => navigate("/")}
             onJumpToSkillSearch={handleJumpToSkillSearch}
+            onOpenProfile={handleOpenProfile}
+            onNavigate={navigate}
             onRefreshMyProfile={() => {
               if (myProfile && myProfile.id) {
                 apiGet(`/api/profiles/${myProfile.id}`)

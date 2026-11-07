@@ -3,6 +3,7 @@ import { apiGet, apiSend } from "../api";
 
 const DETAIL_TABS = [
   { key: "skills", label: "Umiejętności" },
+  { key: "wallet", label: "🪙 Portfel Coinów" },
   { key: "contact", label: "Kontakt" },
   { key: "bio", label: "O mnie" },
 ];
@@ -16,12 +17,19 @@ export function ProfileDetailView({
   onBackToSearch,
   onJumpToSkillSearch,
   onRefreshMyProfile,
+  onOpenProfile,
+  onNavigate,
 }) {
   const [profile, setProfile] = useState(cachedProfile || null);
   const [activeTab, setActiveTab] = useState("skills");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(!cachedProfile);
   const tabRefs = useRef({});
+
+  // Portfel Chłopocoinów & Księga Bloków tego profilu
+  const [walletStats, setWalletStats] = useState(null);
+  const [loadingWallet, setLoadingWallet] = useState(false);
+  const [visibleWalletBlocksCount, setVisibleWalletBlocksCount] = useState(6);
 
   // Chłopocoin (ekonomia wzajemnej pomocy 2/2)
   const [coinStatus, setCoinStatus] = useState({
@@ -87,6 +95,24 @@ export function ProfileDetailView({
     };
   }, [isOtherProfile, myProfile?.id, profile?.id]);
 
+  const fetchWalletStats = (idToFetch) => {
+    const pid = idToFetch || profileId || profile?.id;
+    if (!pid) return;
+    setLoadingWallet(true);
+    apiGet(`/api/profiles/${pid}/chlopocoin-stats`)
+      .then((data) => {
+        setWalletStats(data);
+      })
+      .catch(() => {})
+      .finally(() => {
+        setLoadingWallet(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchWalletStats(profileId);
+  }, [profileId]);
+
   // Akcja potwierdzenia pomocy i przyznania Chłopocoina (konsensus 2/2)
   const handleConfirmHelp = async () => {
     if (!myProfile || !profile) return;
@@ -109,13 +135,15 @@ export function ProfileDetailView({
         block_hash: res.block_hash || prev.block_hash,
       }));
 
-      // Odśwież stan oglądanego profilu (jeśli dostał coin)
+      // Odśwież stan oglądanego profilu i portfela (jeśli dostał coin)
       apiGet(`/api/profiles/${profile.id}`)
         .then((fresh) => {
           setProfile(fresh);
           onCacheProfile(fresh);
         })
         .catch(() => {});
+
+      fetchWalletStats(profile.id);
 
       if (onRefreshMyProfile) {
         onRefreshMyProfile();
@@ -178,13 +206,15 @@ export function ProfileDetailView({
                   <span className="badge-role-user" id="detail-role-badge">Chłop</span>
                 )}
               </div>
-              <div
-                className="profile-coin-pill"
+              <button
+                type="button"
+                className="profile-coin-pill clickable-pill"
                 id="detail-coin-pill"
-                title="Stan konta Chłopocoinów za udaną pomoc braterską"
+                onClick={() => setActiveTab("wallet")}
+                title="Kliknij, aby otworzyć portfel i historię bloków Chłopchain tego profilu"
               >
-                🪙 <strong id="detail-profile-coins">{profile.chlopocoin_balance || 0}</strong> CC
-              </div>
+                🪙 <strong id="detail-profile-coins">{walletStats?.balance ?? profile.chlopocoin_balance ?? 0}</strong> CC
+              </button>
             </div>
 
             {/* Panel Chłopocoinów (Gdy jesteś zalogowany i oglądasz profil innego chłopa) */}
@@ -348,6 +378,170 @@ export function ProfileDetailView({
                     <span className="label-sub">brak wpisanych opcji</span>
                   )}
                 </div>
+              </div>
+            </div>
+
+            {/* Zakładka 2: Portfel Coinów i Blockchain Dashboard */}
+            <div
+              id="detail-panel-wallet"
+              role="tabpanel"
+              aria-labelledby="detail-tab-wallet"
+              className="profile-tab-panel"
+              hidden={activeTab !== "wallet"}
+            >
+              <div className="stats-hero-card" id="detail-wallet-hero">
+                <div className="stats-hero-icon" aria-hidden="true">🪙</div>
+                <div className="stats-hero-info">
+                  <div className="stats-hero-label">Portfel w sieci Chłopchain:</div>
+                  <div className="stats-hero-balance">
+                    <span id="detail-wallet-balance" className="coin-balance-big">
+                      {walletStats?.balance ?? profile.chlopocoin_balance ?? 0}
+                    </span>
+                    <span className="coin-currency">Chłopocoinów (CC)</span>
+                  </div>
+                  <p className="stats-hero-sub">
+                    Zdecentralizowany portfel chłopski. Każdy Chłopocoin (🪙 CC) w portfelu chłopa <strong>{profile.name}</strong> pochodzi z pomyślnie zrealizowanej pomocy między braćmi (Proof of Chłop Help — autentyczny konsensus 2/2).
+                  </p>
+                </div>
+              </div>
+
+              <div className="stats-metrics-grid" id="detail-wallet-metrics">
+                <div className="stat-metric-card">
+                  <div className="metric-val" id="detail-metric-balance">
+                    🪙 {walletStats?.balance ?? profile.chlopocoin_balance ?? 0} CC
+                  </div>
+                  <div className="metric-desc">Saldo Chłopocoinów</div>
+                </div>
+
+                <div className="stat-metric-card">
+                  <div className="metric-val" id="detail-metric-completed">
+                    🤝 {walletStats?.completed_helps ?? walletStats?.blocks?.length ?? 0}
+                  </div>
+                  <div className="metric-desc">Wykopane bloki (Wymiany 2/2)</div>
+                </div>
+
+                <div className="stat-metric-card">
+                  <div className="metric-val" id="detail-metric-pending">
+                    ⏳ {walletStats?.waiting_for_them_count ?? 0}
+                  </div>
+                  <div className="metric-desc">Czeka na potwierdzenie</div>
+                </div>
+              </div>
+
+              {/* Księga Rozproszona wykopanych bloków tego chłopa */}
+              <div className="stats-blockchain-ledger" id="detail-blocks-ledger">
+                <div className="ledger-header-flex">
+                  <h4 className="ledger-title">
+                    ⛓️ Księga Rozproszona Chłopchain ({walletStats?.blocks?.length ?? 0} bloków)
+                  </h4>
+                  <a
+                    href="/chlopchain"
+                    className="ledger-global-link"
+                    onClick={(e) => {
+                      if (onNavigate) {
+                        e.preventDefault();
+                        onNavigate("/chlopchain");
+                      }
+                    }}
+                  >
+                    Zobacz całą sieć Chłopchain →
+                  </a>
+                </div>
+
+                {loadingWallet ? (
+                  <p className="label-sub">Synchronizacja bloków z łańcuchem...</p>
+                ) : walletStats?.blocks && walletStats.blocks.length > 0 ? (
+                  <div className="ledger-table-wrap">
+                    <table className="ledger-table">
+                      <thead>
+                        <tr>
+                          <th>Blok</th>
+                          <th>Partner w pomocy</th>
+                          <th>Hash bloku (SHA-256)</th>
+                          <th>Data</th>
+                          <th>Nagroda</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {walletStats.blocks.slice(0, visibleWalletBlocksCount).map((b) => (
+                          <tr key={b.block_index} id={`detail-block-row-${b.block_index}`}>
+                            <td><strong>#{b.block_index}</strong></td>
+                            <td>
+                              {b.partner_id && onOpenProfile ? (
+                                <button
+                                  type="button"
+                                  className="chat-author-btn"
+                                  onClick={() => onOpenProfile({ id: b.partner_id, name: b.partner_name })}
+                                >
+                                  {b.partner_name}
+                                </button>
+                              ) : (
+                                <span>{b.partner_name}</span>
+                              )}
+                            </td>
+                            <td>
+                              <code className="block-hash" title={b.block_hash}>
+                                {b.block_hash ? `${b.block_hash.slice(0, 16)}...` : "—"}
+                              </code>
+                            </td>
+                            <td>{b.created_at ? new Date(b.created_at).toLocaleDateString() : "—"}</td>
+                            <td><span className="badge badge-success">+1 🪙 CC</span></td>
+                            <td><span className="badge badge-mutual">Konsensus 2/2 ✓</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    {walletStats.blocks.length > 6 && (
+                      <div className="load-more-ledger-bar">
+                        <span className="load-more-counter">
+                          Wyświetlono {Math.min(visibleWalletBlocksCount, walletStats.blocks.length)} z {walletStats.blocks.length} wykopanych bloków
+                        </span>
+                        <div className="load-more-btn-group">
+                          {visibleWalletBlocksCount < walletStats.blocks.length && (
+                            <button
+                              type="button"
+                              id="btn-load-more-detail-blocks"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => setVisibleWalletBlocksCount((prev) => prev + 6)}
+                            >
+                              Pokaż więcej bloków (+6)
+                            </button>
+                          )}
+                          {visibleWalletBlocksCount < walletStats.blocks.length && (
+                            <button
+                              type="button"
+                              id="btn-load-all-detail-blocks"
+                              className="btn btn-outline btn-sm"
+                              onClick={() => setVisibleWalletBlocksCount(walletStats.blocks.length)}
+                            >
+                              Pokaż wszystkie ({walletStats.blocks.length})
+                            </button>
+                          )}
+                          {visibleWalletBlocksCount > 6 && (
+                            <button
+                              type="button"
+                              className="btn btn-outline btn-sm"
+                              onClick={() => setVisibleWalletBlocksCount(6)}
+                            >
+                              Zwiń do 6
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="ledger-empty-box" id="detail-wallet-empty">
+                    <p className="ledger-empty-title">
+                      Brak wykopanych bloków w portfelu tego chłopa.
+                    </p>
+                    <p className="label-sub">
+                      Gdy {profile.name} pomoże innemu chłopu i po udanej pomocy <strong>obaj potwierdzą to na profilu</strong>, Chłopchain wykopie blok i nagrodzi obu chłopów monetami CC!
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 

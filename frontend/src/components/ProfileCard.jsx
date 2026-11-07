@@ -63,6 +63,9 @@ export const ProfileCard = React.memo(function ProfileCard({
           <a href={`/profil/${profile.id}`} className="card-name" onClick={handleOpen}>
             {profile.name}
           </a>
+          <span className="profile-coin-pill card-coin-pill" title="Portfel Chłopocoinów tego chłopa">
+            🪙 <strong>{profile.chlopocoin_balance || 0}</strong> CC
+          </span>
           {badge}
         </div>
         <a href={`/profil/${profile.id}`} className="card-open-link" onClick={handleOpen}>
