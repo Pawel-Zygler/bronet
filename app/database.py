@@ -403,6 +403,21 @@ def init_db(seed: bool = True) -> None:
 
             CREATE INDEX IF NOT EXISTS idx_chat_messages_id ON global_chat_messages(id);
             CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON global_chat_messages(created_at);
+
+            CREATE TABLE IF NOT EXISTS direct_chat_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sender_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                receiver_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                message TEXT NOT NULL,
+                is_read INTEGER NOT NULL DEFAULT 0,
+                deleted_by_sender INTEGER NOT NULL DEFAULT 0,
+                deleted_by_receiver INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_direct_chat_pair ON direct_chat_messages(sender_id, receiver_id);
+            CREATE INDEX IF NOT EXISTS idx_direct_chat_receiver_unread ON direct_chat_messages(receiver_id, is_read);
+            CREATE INDEX IF NOT EXISTS idx_direct_chat_created ON direct_chat_messages(created_at);
             """
         )
 
@@ -1646,3 +1661,264 @@ def list_chat_messages(limit: int = 50, since_id: int = 0) -> List[Dict[str, Any
                 }
             )
         return result
+
+
+def create_direct_message(
+    sender_id: int,
+    receiver_id: int,
+    message: str,
+) -> Dict[str, Any]:
+    if sender_id == receiver_id:
+        raise ProfileValidationError("Nie możesz wysłać wiadomości prywatnej do samego siebie.")
+
+    cleaned_msg = str(message or "").strip()
+    if not cleaned_msg:
+        raise ProfileValidationError("Treść wiadomości nie może być pusta.")
+    if len(cleaned_msg) > 1000:
+        cleaned_msg = cleaned_msg[:1000]
+
+    with get_db() as conn:
+        sender = conn.execute("SELECT id, name FROM profiles WHERE id = ?", (sender_id,)).fetchone()
+        if not sender:
+            raise ProfileValidationError("Nadawca wiadomości nie istnieje.")
+
+        receiver = conn.execute("SELECT id, name FROM profiles WHERE id = ?", (receiver_id,)).fetchone()
+        if not receiver:
+            raise ProfileValidationError("Odbiorca wiadomości nie istnieje.")
+
+        now_str = datetime.now(timezone.utc).isoformat()
+        cur = conn.execute(
+            """
+            INSERT INTO direct_chat_messages (
+                sender_id, receiver_id, message, is_read, deleted_by_sender, deleted_by_receiver, created_at
+            )
+            VALUES (?, ?, ?, 0, 0, 0, ?)
+            """,
+            (sender_id, receiver_id, cleaned_msg, now_str),
+        )
+        msg_id = cur.lastrowid
+        return {
+            "id": msg_id,
+            "sender_id": sender_id,
+            "sender_name": sender["name"],
+            "receiver_id": receiver_id,
+            "receiver_name": receiver["name"],
+            "message": cleaned_msg,
+            "is_read": False,
+            "created_at": now_str,
+        }
+
+
+def list_direct_messages(
+    user_id: int,
+    partner_id: int,
+    limit: int = 100,
+    since_id: int = 0,
+) -> List[Dict[str, Any]]:
+    with get_db() as conn:
+        fetch_limit = max(1, min(200, limit))
+        if since_id > 0:
+            query = """
+                SELECT d.id, d.sender_id, s.name AS sender_name,
+                       d.receiver_id, r.name AS receiver_name,
+                       d.message, d.is_read, d.created_at
+                FROM direct_chat_messages d
+                JOIN profiles s ON d.sender_id = s.id
+                JOIN profiles r ON d.receiver_id = r.id
+                WHERE (
+                    (d.sender_id = ? AND d.receiver_id = ? AND d.deleted_by_sender = 0)
+                    OR
+                    (d.sender_id = ? AND d.receiver_id = ? AND d.deleted_by_receiver = 0)
+                )
+                AND d.id > ?
+                ORDER BY d.id ASC
+                LIMIT ?
+            """
+            rows = conn.execute(query, (user_id, partner_id, partner_id, user_id, since_id, fetch_limit)).fetchall()
+        else:
+            query = """
+                SELECT d.id, d.sender_id, s.name AS sender_name,
+                       d.receiver_id, r.name AS receiver_name,
+                       d.message, d.is_read, d.created_at
+                FROM direct_chat_messages d
+                JOIN profiles s ON d.sender_id = s.id
+                JOIN profiles r ON d.receiver_id = r.id
+                WHERE (
+                    (d.sender_id = ? AND d.receiver_id = ? AND d.deleted_by_sender = 0)
+                    OR
+                    (d.sender_id = ? AND d.receiver_id = ? AND d.deleted_by_receiver = 0)
+                )
+                ORDER BY d.id DESC
+                LIMIT ?
+            """
+            rows = conn.execute(query, (user_id, partner_id, partner_id, user_id, fetch_limit)).fetchall()
+            rows = list(reversed(rows))
+
+        result = []
+        for r in rows:
+            result.append(
+                {
+                    "id": r["id"],
+                    "sender_id": r["sender_id"],
+                    "sender_name": r["sender_name"],
+                    "receiver_id": r["receiver_id"],
+                    "receiver_name": r["receiver_name"],
+                    "message": r["message"],
+                    "is_read": bool(r["is_read"]),
+                    "created_at": r["created_at"],
+                }
+            )
+        return result
+
+
+def mark_direct_messages_as_read(user_id: int, partner_id: int) -> int:
+    with get_db() as conn:
+        cur = conn.execute(
+            """
+            UPDATE direct_chat_messages
+            SET is_read = 1
+            WHERE receiver_id = ? AND sender_id = ? AND is_read = 0 AND deleted_by_receiver = 0
+            """,
+            (user_id, partner_id),
+        )
+        return cur.rowcount
+
+
+def list_user_conversations(user_id: int) -> List[Dict[str, Any]]:
+    with get_db() as conn:
+        partner_rows = conn.execute(
+            """
+            SELECT DISTINCT
+                CASE WHEN sender_id = ? THEN receiver_id ELSE sender_id END AS partner_id
+            FROM direct_chat_messages
+            WHERE (sender_id = ? AND deleted_by_sender = 0)
+               OR (receiver_id = ? AND deleted_by_receiver = 0)
+            """,
+            (user_id, user_id, user_id),
+        ).fetchall()
+
+        conversations = []
+        for p in partner_rows:
+            pid = p["partner_id"]
+            prof = conn.execute("SELECT id, name, location_name FROM profiles WHERE id = ?", (pid,)).fetchone()
+            if not prof:
+                continue
+
+            last_msg = conn.execute(
+                """
+                SELECT id, message, created_at, sender_id
+                FROM direct_chat_messages
+                WHERE (
+                    (sender_id = ? AND receiver_id = ? AND deleted_by_sender = 0)
+                    OR
+                    (sender_id = ? AND receiver_id = ? AND deleted_by_receiver = 0)
+                )
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (user_id, pid, pid, user_id),
+            ).fetchone()
+
+            if not last_msg:
+                continue
+
+            unread_cnt = conn.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM direct_chat_messages
+                WHERE receiver_id = ? AND sender_id = ? AND is_read = 0 AND deleted_by_receiver = 0
+                """,
+                (user_id, pid),
+            ).fetchone()["c"]
+
+            total_cnt = conn.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM direct_chat_messages
+                WHERE (
+                    (sender_id = ? AND receiver_id = ? AND deleted_by_sender = 0)
+                    OR
+                    (sender_id = ? AND receiver_id = ? AND deleted_by_receiver = 0)
+                )
+                """,
+                (user_id, pid, pid, user_id),
+            ).fetchone()["c"]
+
+            conversations.append(
+                {
+                    "partner_id": prof["id"],
+                    "partner_name": prof["name"],
+                    "partner_location": prof["location_name"] or "",
+                    "last_message": last_msg["message"],
+                    "last_message_time": last_msg["created_at"],
+                    "unread_count": unread_cnt,
+                    "total_messages": total_cnt,
+                }
+            )
+
+        conversations.sort(key=lambda c: c["last_message_time"], reverse=True)
+        return conversations
+
+
+def clear_conversation_history(user_id: int, partner_id: int) -> Dict[str, Any]:
+    with get_db() as conn:
+        conn.execute(
+            """
+            UPDATE direct_chat_messages
+            SET deleted_by_sender = 1
+            WHERE sender_id = ? AND receiver_id = ?
+            """,
+            (user_id, partner_id),
+        )
+        conn.execute(
+            """
+            UPDATE direct_chat_messages
+            SET deleted_by_receiver = 1
+            WHERE receiver_id = ? AND sender_id = ?
+            """,
+            (user_id, partner_id),
+        )
+        conn.execute(
+            """
+            DELETE FROM direct_chat_messages
+            WHERE deleted_by_sender = 1 AND deleted_by_receiver = 1
+            """
+        )
+        return {"cleared": True, "partner_id": partner_id}
+
+
+def delete_single_direct_message(user_id: int, message_id: int) -> Dict[str, Any]:
+    with get_db() as conn:
+        msg = conn.execute("SELECT * FROM direct_chat_messages WHERE id = ?", (message_id,)).fetchone()
+        if not msg:
+            raise ProfileValidationError("Nie znaleziono wiadomości.")
+
+        if msg["sender_id"] != user_id and msg["receiver_id"] != user_id:
+            raise ProfileAuthError("Nie masz uprawnień do usunięcia tej wiadomości.")
+
+        if msg["sender_id"] == user_id:
+            conn.execute("UPDATE direct_chat_messages SET deleted_by_sender = 1 WHERE id = ?", (message_id,))
+        if msg["receiver_id"] == user_id:
+            conn.execute("UPDATE direct_chat_messages SET deleted_by_receiver = 1 WHERE id = ?", (message_id,))
+
+        conn.execute(
+            """
+            DELETE FROM direct_chat_messages
+            WHERE id = ? AND deleted_by_sender = 1 AND deleted_by_receiver = 1
+            """,
+            (message_id,),
+        )
+        return {"deleted": True, "message_id": message_id}
+
+
+def get_unread_dm_count(user_id: int) -> int:
+    with get_db() as conn:
+        row = conn.execute(
+            """
+            SELECT COUNT(*) AS c
+            FROM direct_chat_messages
+            WHERE receiver_id = ? AND is_read = 0 AND deleted_by_receiver = 0
+            """,
+            (user_id,),
+        ).fetchone()
+        return row["c"] if row else 0

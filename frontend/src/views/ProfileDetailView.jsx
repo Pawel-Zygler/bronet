@@ -205,6 +205,27 @@ export function ProfileDetailView({
                 ) : (
                   <span className="badge-role-user" id="detail-role-badge">Chłop</span>
                 )}
+                {isOtherProfile && (
+                  <button
+                    type="button"
+                    id="btn-profile-send-dm"
+                    className="btn btn-secondary btn-sm profile-dm-btn"
+                    onClick={() => {
+                      window.dispatchEvent(
+                        new CustomEvent("bronet_open_dm", {
+                          detail: {
+                            id: profile.id,
+                            name: profile.name,
+                            location_name: profile.location_name,
+                          },
+                        })
+                      );
+                    }}
+                    title={`Napisz prywatną wiadomość do ${profile.name}`}
+                  >
+                    ✉️ Napisz na priv
+                  </button>
+                )}
               </div>
               <button
                 type="button"
@@ -570,6 +591,29 @@ export function ProfileDetailView({
                 </div>
               ) : (
                 <span className="label-sub">brak wpisanych danych kontaktowych</span>
+              )}
+
+              {isOtherProfile && (
+                <div style={{ marginTop: 14 }}>
+                  <button
+                    type="button"
+                    id="btn-contact-send-dm"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      window.dispatchEvent(
+                        new CustomEvent("bronet_open_dm", {
+                          detail: {
+                            id: profile.id,
+                            name: profile.name,
+                            location_name: profile.location_name,
+                          },
+                        })
+                      );
+                    }}
+                  >
+                    ✉️ Napisz wiadomość prywatną do {profile.name}
+                  </button>
+                </div>
               )}
             </div>
 

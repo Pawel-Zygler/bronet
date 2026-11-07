@@ -26,6 +26,13 @@ from app.database import (
     is_admin_email,
     list_chat_messages,
     create_chat_message,
+    create_direct_message,
+    list_direct_messages,
+    mark_direct_messages_as_read,
+    list_user_conversations,
+    clear_conversation_history,
+    delete_single_direct_message,
+    get_unread_dm_count,
     list_profiles,
     update_profile,
 )
@@ -33,7 +40,10 @@ from app.models import (
     ChatMessagePayload,
     ChatMessageResponse,
     ConfirmHelpPayload,
+    ConversationSummaryResponse,
     DeletePayload,
+    DirectMessagePayload,
+    DirectMessageResponse,
     LoginPayload,
     ProfilePayload,
     ProfileResponse,
@@ -293,6 +303,106 @@ def api_send_chat_message(
         )
     except ProfileValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.get("/api/dm/conversations", response_model=List[ConversationSummaryResponse])
+def api_list_conversations(
+    x_profile_id: Optional[int] = Header(default=None),
+    profile_id: Optional[int] = Query(default=None),
+) -> List[dict]:
+    uid = profile_id or x_profile_id
+    if not uid:
+        raise HTTPException(status_code=400, detail="Brak identyfikatora zalogowanego profilu.")
+    return list_user_conversations(uid)
+
+
+@app.get("/api/dm/messages/{partner_id}", response_model=List[DirectMessageResponse])
+def api_list_direct_messages(
+    partner_id: int,
+    x_profile_id: Optional[int] = Header(default=None),
+    profile_id: Optional[int] = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=200),
+    since_id: int = Query(default=0, ge=0),
+    mark_read: bool = Query(default=True),
+) -> List[dict]:
+    uid = profile_id or x_profile_id
+    if not uid:
+        raise HTTPException(status_code=400, detail="Brak identyfikatora zalogowanego profilu.")
+    if mark_read:
+        mark_direct_messages_as_read(user_id=uid, partner_id=partner_id)
+    return list_direct_messages(user_id=uid, partner_id=partner_id, limit=limit, since_id=since_id)
+
+
+@app.post("/api/dm/messages/{partner_id}", response_model=DirectMessageResponse, status_code=201)
+def api_send_direct_message(
+    partner_id: int,
+    payload: DirectMessagePayload,
+    x_profile_id: Optional[int] = Header(default=None),
+) -> dict:
+    sender_id = payload.profile_id or x_profile_id
+    if not sender_id:
+        raise HTTPException(status_code=400, detail="Brak identyfikatora nadawcy.")
+    try:
+        return create_direct_message(
+            sender_id=sender_id,
+            receiver_id=partner_id,
+            message=payload.message,
+        )
+    except ProfileValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.delete("/api/dm/conversations/{partner_id}")
+def api_clear_conversation(
+    partner_id: int,
+    x_profile_id: Optional[int] = Header(default=None),
+    profile_id: Optional[int] = Query(default=None),
+) -> dict:
+    uid = profile_id or x_profile_id
+    if not uid:
+        raise HTTPException(status_code=400, detail="Brak identyfikatora zalogowanego profilu.")
+    return clear_conversation_history(user_id=uid, partner_id=partner_id)
+
+
+@app.delete("/api/dm/messages/{message_id}")
+def api_delete_direct_message(
+    message_id: int,
+    x_profile_id: Optional[int] = Header(default=None),
+    profile_id: Optional[int] = Query(default=None),
+) -> dict:
+    uid = profile_id or x_profile_id
+    if not uid:
+        raise HTTPException(status_code=400, detail="Brak identyfikatora zalogowanego profilu.")
+    try:
+        return delete_single_direct_message(user_id=uid, message_id=message_id)
+    except ProfileAuthError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except ProfileValidationError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.post("/api/dm/messages/{partner_id}/read")
+def api_mark_messages_read(
+    partner_id: int,
+    x_profile_id: Optional[int] = Header(default=None),
+    profile_id: Optional[int] = Query(default=None),
+) -> dict:
+    uid = profile_id or x_profile_id
+    if not uid:
+        raise HTTPException(status_code=400, detail="Brak identyfikatora zalogowanego profilu.")
+    updated = mark_direct_messages_as_read(user_id=uid, partner_id=partner_id)
+    return {"read_count": updated, "partner_id": partner_id}
+
+
+@app.get("/api/dm/unread-count")
+def api_dm_unread_count(
+    x_profile_id: Optional[int] = Header(default=None),
+    profile_id: Optional[int] = Query(default=None),
+) -> dict:
+    uid = profile_id or x_profile_id
+    if not uid:
+        return {"unread_count": 0}
+    return {"unread_count": get_unread_dm_count(uid)}
 
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

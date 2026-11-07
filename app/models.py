@@ -71,3 +71,29 @@ class ChatMessageResponse(BaseModel):
     author_name: str
     profile_id: Optional[int] = None
     created_at: str
+
+
+class DirectMessagePayload(BaseModel):
+    message: str = Field(..., min_length=1, max_length=1000)
+    profile_id: Optional[int] = None
+
+
+class DirectMessageResponse(BaseModel):
+    id: int
+    sender_id: int
+    sender_name: str
+    receiver_id: int
+    receiver_name: str
+    message: str
+    is_read: bool
+    created_at: str
+
+
+class ConversationSummaryResponse(BaseModel):
+    partner_id: int
+    partner_name: str
+    partner_location: Optional[str] = ""
+    last_message: str
+    last_message_time: str
+    unread_count: int
+    total_messages: int
