@@ -1426,6 +1426,24 @@ def confirm_chlop_help(
 
         if other_confirmed:
             with BLOCKCHAIN_LOCK:
+                # Sprawdź ponownie pod lockiem czy blok nie został wybity przez współbieżny wątek
+                existing_in_lock = conn.execute(
+                    "SELECT * FROM chlopocoin_blocks WHERE profile_a_id = ? AND profile_b_id = ?",
+                    (p1, p2),
+                ).fetchone()
+                if existing_in_lock:
+                    balance_row = conn.execute(
+                        "SELECT chlopocoin_balance FROM profiles WHERE id = ?", (from_profile_id,)
+                    ).fetchone()
+                    return {
+                        "status": "already_settled",
+                        "mutual_settled": True,
+                        "block_index": existing_in_lock["block_index"],
+                        "block_hash": existing_in_lock["block_hash"],
+                        "chlopocoin_balance": balance_row["chlopocoin_balance"] if balance_row else 0,
+                        "message": "Pomoc została już rozliczona w sieci Chłopchain. Chłopocoin został przyznany wcześniej.",
+                    }
+
                 # KONSENSUS 2/2 OSIĄGNIĘTY -> Mint nowego bloku w Chłopchainie!
                 last_block = conn.execute(
                     "SELECT block_index, block_hash FROM chlopocoin_blocks ORDER BY block_index DESC LIMIT 1"
