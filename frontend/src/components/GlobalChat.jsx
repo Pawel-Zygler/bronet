@@ -37,7 +37,7 @@ export function GlobalChat({ myProfile, onOpenProfile, directPartner, onClearDir
   const [isSendingDm, setIsSendingDm] = useState(false);
   const [dmErrorMsg, setDmErrorMsg] = useState("");
   const [dmStatusInfo, setDmStatusInfo] = useState("");
-  const [showNewDmPicker, setShowNewDmPicker] = useState(false);
+  const [dmSearchQuery, setDmSearchQuery] = useState("");
   const [availableProfiles, setAvailableProfiles] = useState([]);
 
   const messagesEndRef = useRef(null);
@@ -173,6 +173,7 @@ export function GlobalChat({ myProfile, onOpenProfile, directPartner, onClearDir
       } else {
         fetchConversations();
       }
+      fetchAvailableProfiles();
     }
 
     const interval = setInterval(() => {
@@ -356,6 +357,15 @@ export function GlobalChat({ myProfile, onOpenProfile, directPartner, onClearDir
 
   const totalUnreadAll = globalUnreadCount + dmUnreadCount;
 
+  const searchResults = dmSearchQuery.trim()
+    ? availableProfiles.filter((p) => {
+        const q = dmSearchQuery.trim().toLowerCase();
+        const nameMatch = p.name && p.name.toLowerCase().includes(q);
+        const locMatch = p.location_name && p.location_name.toLowerCase().includes(q);
+        return nameMatch || locMatch;
+      })
+    : [];
+
   return (
     <aside
       className={`global-chat-widget ${isOpen ? "is-open" : "is-collapsed"}`}
@@ -443,6 +453,7 @@ export function GlobalChat({ myProfile, onOpenProfile, directPartner, onClearDir
                 if (myProfile?.id) {
                   fetchConversations();
                   fetchDmUnreadCount();
+                  fetchAvailableProfiles();
                 }
               }}
             >
@@ -729,60 +740,96 @@ export function GlobalChat({ myProfile, onOpenProfile, directPartner, onClearDir
                   </form>
                 </div>
               ) : (
-                /* Lista konwersacji (Messenger/LinkedIn inbox) */
+                /* Lista konwersacji (Messenger/LinkedIn inbox) z wyszukiwarką chłopa po nazwie */
                 <div className="chat-conversations-screen" id="chat-conversations-list">
-                  <div className="chat-convs-header-bar">
-                    <span className="chat-convs-title">Rozmowy prywatne ({conversations.length})</span>
-                    <button
-                      type="button"
-                      id="chat-btn-new-dm"
-                      className="btn btn-outline btn-sm chat-btn-new-dm"
-                      onClick={() => {
-                        setShowNewDmPicker((prev) => !prev);
-                        if (!showNewDmPicker) fetchAvailableProfiles();
+                  {/* Wyszukiwarka po nazwie chłopa */}
+                  <div className="chat-dm-search-bar" id="chat-dm-search-bar">
+                    <span className="chat-dm-search-icon" aria-hidden="true">🔍</span>
+                    <input
+                      type="text"
+                      id="chat-dm-search-input"
+                      className="chat-dm-search-input"
+                      placeholder="Wyszukaj chłopa po nazwie..."
+                      value={dmSearchQuery}
+                      onChange={(e) => {
+                        setDmSearchQuery(e.target.value);
+                        if (availableProfiles.length === 0) fetchAvailableProfiles();
                       }}
-                    >
-                      {showNewDmPicker ? "✕ Zamknij" : "+ Nowa rozmowa"}
-                    </button>
+                      autoComplete="off"
+                    />
+                    {dmSearchQuery && (
+                      <button
+                        type="button"
+                        id="btn-clear-dm-search"
+                        className="chat-dm-search-clear-btn"
+                        onClick={() => setDmSearchQuery("")}
+                        title="Wyczyść wyszukiwanie"
+                        aria-label="Wyczyść wyszukiwanie"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
 
-                  {/* Picker do rozpoczęcia rozmowy z dowolnym profilem */}
-                  {showNewDmPicker && (
-                    <div className="chat-new-dm-picker" id="chat-new-dm-picker-box">
-                      <div className="label-sub" style={{ marginBottom: 6 }}>
-                        Wybierz chłopa z bazy, aby rozpocząć czat:
-                      </div>
-                      <select
-                        id="chat-select-new-dm-partner"
-                        className="chat-new-dm-select"
-                        defaultValue=""
-                        onChange={(e) => {
-                          const targetId = Number(e.target.value);
-                          if (!targetId) return;
-                          const chosen = availableProfiles.find((p) => p.id === targetId);
-                          if (chosen) {
-                            handleSelectPartner(chosen);
-                            setShowNewDmPicker(false);
-                          }
-                        }}
-                      >
-                        <option value="" disabled>-- Wybierz profil --</option>
-                        {availableProfiles.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} {p.location_name ? `(${p.location_name})` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {/* Lista aktywnych wątków */}
+                  {/* Wyniki wyszukiwania po nazwie LUB lista aktywnych rozmów */}
                   <div className="chat-convs-list-items">
-                    {conversations.length === 0 ? (
+                    {dmSearchQuery.trim() ? (
+                      searchResults.length === 0 ? (
+                        <div className="chat-empty-state" id="chat-dm-search-empty">
+                          <p>Nie znaleziono chłopa o nazwie „{dmSearchQuery}”.</p>
+                          <span className="label-sub">Sprawdź pisownię lub wpisz fragment nazwy.</span>
+                        </div>
+                      ) : (
+                        <div className="chat-dm-search-results" id="chat-dm-search-results">
+                          <div className="chat-dm-section-heading">
+                            Wyniki wyszukiwania ({searchResults.length})
+                          </div>
+                          {searchResults.map((user) => (
+                            <div
+                              key={user.id}
+                              className="chat-conv-item chat-search-result-item"
+                              onClick={() => {
+                                handleSelectPartner(user);
+                                setDmSearchQuery("");
+                              }}
+                              data-partner-id={user.id}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  handleSelectPartner(user);
+                                  setDmSearchQuery("");
+                                }
+                              }}
+                            >
+                              <div className="chat-conv-avatar" aria-hidden="true">
+                                {user.name ? user.name.charAt(0).toUpperCase() : "👤"}
+                              </div>
+                              <div className="chat-conv-details">
+                                <div className="chat-conv-top-line">
+                                  <span className="chat-conv-name">{user.name}</span>
+                                  {user.location_name && (
+                                    <span className="chat-conv-time">📍 {user.location_name}</span>
+                                  )}
+                                </div>
+                                <div className="chat-conv-bottom-line">
+                                  <span className="chat-conv-snippet">
+                                    {user.can_help && user.can_help.length > 0
+                                      ? `Pomaga z: ${user.can_help.slice(0, 2).join(", ")}`
+                                      : "Kliknij, aby rozpocząć czat prywatny"}
+                                  </span>
+                                  <span className="chat-search-start-badge">Napisz →</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    ) : conversations.length === 0 ? (
                       <div className="chat-empty-state">
                         <p>Brak historii prywatnych rozmów.</p>
                         <p className="label-sub">
-                          Kliknij <strong>+ Nowa rozmowa</strong> powyżej lub wejdź na profil chłopa i wybierz <em>"Napisz na priv"</em>.
+                          Wyszukaj chłopa po nazwie w polu powyżej lub wejdź na profil chłopa i wybierz <em>"Napisz na priv"</em>.
                         </p>
                       </div>
                     ) : (

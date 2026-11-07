@@ -990,11 +990,32 @@ test.describe("Landing & Search", () => {
         const dmMessages = page.locator("#chat-dm-messages-list");
         await expect(dmMessages).toContainText(testDmText, { timeout: 6000 });
 
-        // 6. Opcje historii DM (LinkedIn / Messenger inbox)
+        // 6. Opcje historii DM (LinkedIn / Messenger inbox) i wyszukiwarka po nazwie
         // Wróć do listy rozmów
         const backBtn = page.locator("#btn-back-to-conversations");
         await expect(backBtn).toBeVisible();
         await backBtn.click();
+
+        // Wyszukiwarka po nazwie jest widoczna zamiast listy wyboru
+        const dmSearchInput = page.locator("#chat-dm-search-input");
+        await expect(dmSearchInput).toBeVisible();
+
+        // Wyszukaj profil Bogdana po nazwie
+        await dmSearchInput.fill(profB.name);
+        const searchResults = page.locator("#chat-dm-search-results");
+        await expect(searchResults).toBeVisible();
+        await expect(searchResults).toContainText(profB.name);
+
+        // Wyszukaj nieistniejącego chłopa
+        await dmSearchInput.fill("NieznanyChlop9999");
+        await expect(page.locator("#chat-dm-search-empty")).toBeVisible();
+        await expect(page.locator("#chat-dm-search-empty")).toContainText("NieznanyChlop9999");
+
+        // Wyczyść wyszukiwanie przyciskiem 'X'
+        const clearSearchBtn = page.locator("#btn-clear-dm-search");
+        await expect(clearSearchBtn).toBeVisible();
+        await clearSearchBtn.click();
+        await expect(dmSearchInput).toHaveValue("");
 
         // Lista konwersacji zawiera Bogdana i fragment wiadomości
         const convList = page.locator("#chat-conversations-list");
