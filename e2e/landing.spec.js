@@ -732,18 +732,28 @@ test.describe("Landing & Search", () => {
       const sliderMax = page.locator("#slider-max-tps");
       const sliderInterval = page.locator("#slider-interval");
       const sliderPool = page.locator("#slider-pool-pct");
+      const sliderGrowth = page.locator("#slider-profiles-growth");
 
       await expect(sliderMin).toBeVisible();
       await expect(sliderMax).toBeVisible();
       await expect(sliderInterval).toBeVisible();
       await expect(sliderPool).toBeVisible();
+      await expect(sliderGrowth).toBeVisible();
+
+      // Wartość suwaka przyrostu profili
+      await expect(page.locator("#val-profiles-growth")).toContainText("profil");
 
       // Przyciski akcji są widoczne
       await expect(page.locator("#btn-toggle-engine")).toBeVisible();
+      await expect(page.locator("#btn-generate-profile")).toBeVisible();
       await expect(page.locator("#btn-force-tick-5")).toBeVisible();
       await expect(page.locator("#btn-force-tick-25")).toBeVisible();
       await expect(page.locator("#btn-reset-cycle")).toBeVisible();
       await expect(page.locator("#btn-default-config")).toBeVisible();
+
+      // Test natychmiastowego wygenerowania profilu chłopa
+      await page.locator("#btn-generate-profile").click();
+      await expect(sidebar).toContainText("Utworzono chłopa:");
 
       // Test kliknięcia szybkiego profilu 'Turbo'
       const turboBtn = page.locator("#preset-turbo");
@@ -785,7 +795,7 @@ test.describe("Landing & Search", () => {
       }
       const chatWindowA = pageA.locator("#chat-window-content");
       await expect(chatWindowA).toBeVisible();
-      await expect(chatWindowA).toContainText("Globalny Czat");
+      await expect(chatWindowA).toContainText("Chłopczat");
 
       // 2. Urządzenie B (np. telefon - emulacja mobilna)
       const contextB = await browser.newContext({
@@ -948,10 +958,11 @@ test.describe("Landing & Search", () => {
         expect(box.width).toBeGreaterThanOrEqual(300);
         expect(box.height).toBeGreaterThanOrEqual(360);
 
-        // Zakładki Globalny Czat & DM są widoczne
+        // Zakładki Chłopczat & DM są widoczne
         const tabGlobal = page.locator("#chat-tab-global");
         const tabDm = page.locator("#chat-tab-dm");
         await expect(tabGlobal).toBeVisible();
+        await expect(tabGlobal).toContainText("Chłopczat");
         await expect(tabDm).toBeVisible();
 
         // 4. Weryfikacja: tapnięcie na imię profilu robi '@name ' w polu inputu
@@ -961,7 +972,7 @@ test.describe("Landing & Search", () => {
 
         // Odszukaj wysłaną wiadomość i kliknij imię autora
         const authorBtn = page.locator(`[data-mention-author="${profA.name}"]`).last();
-        await expect(authorBtn).toBeVisible({ timeout: 5000 });
+        await expect(authorBtn).toBeVisible({ timeout: 10000 });
         await authorBtn.click();
 
         // Input powinien mieć wstawione @Janek

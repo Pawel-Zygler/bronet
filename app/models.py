@@ -37,6 +37,7 @@ class SimulatorConfigPayload(BaseModel):
     max_tps: Optional[int] = Field(default=None, ge=1, le=100)
     interval_seconds: Optional[float] = Field(default=None, ge=0.05, le=10.0)
     daily_pool_pct: Optional[int] = Field(default=None, ge=5, le=95)
+    profiles_per_hour: Optional[int] = Field(default=None, ge=0, le=120)
     is_running: Optional[bool] = None
 
 

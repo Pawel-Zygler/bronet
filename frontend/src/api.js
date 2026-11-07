@@ -20,10 +20,13 @@ export async function apiSend(url, method, body, extraHeaders = {}) {
   };
 
   try {
-    const rawAuth = localStorage.getItem("bronet_auth");
+    const rawAuth =
+      localStorage.getItem("bronet_my_profile_cache") ||
+      localStorage.getItem("bronet_auth");
     if (rawAuth) {
       const parsed = JSON.parse(rawAuth);
-      if (parsed && (parsed.email === "pawel.zygler@gmail.com" || parsed.role === "admin")) {
+      const email = parsed?.email?.trim().toLowerCase();
+      if (email === "pawel.zygler@gmail.com" || parsed?.role === "admin") {
         headers["X-Admin-Email"] = parsed.email || "pawel.zygler@gmail.com";
       }
     }

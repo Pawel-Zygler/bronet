@@ -259,8 +259,14 @@ async def api_simulator_config(payload: SimulatorConfigPayload) -> dict:
         max_tps=payload.max_tps,
         interval_seconds=payload.interval_seconds,
         daily_pool_pct=payload.daily_pool_pct,
+        profiles_per_hour=payload.profiles_per_hour,
         is_running=payload.is_running,
     )
+
+
+@app.post("/api/chlopocoin/simulator/generate-profile", dependencies=[Depends(verify_admin_access)])
+def api_generate_profile() -> dict:
+    return economy_simulator.generate_profile()
 
 
 @app.post("/api/chlopocoin/simulator/reset-cycle", dependencies=[Depends(verify_admin_access)])

@@ -34,6 +34,9 @@ class ChlopchainEconomySimulator:
         self._max_tps: int = 5
         self._interval_seconds: float = 1.0
         self._daily_pool_pct: int = 60
+        self._profiles_per_hour: int = 1
+        self._last_profile_created_time: float = 0.0
+        self._total_generated_profiles: int = 0
         self._last_tick_time: Optional[str] = None
         self._last_tick_count: int = 0
         self._total_simulated: int = 0
@@ -71,6 +74,21 @@ class ChlopchainEconomySimulator:
                 self._daily_pool_pct = max(5, min(95, int(data["config_daily_pool_pct"])))
             except Exception:
                 pass
+        if "config_profiles_per_hour" in data:
+            try:
+                self._profiles_per_hour = max(0, min(120, int(data["config_profiles_per_hour"])))
+            except Exception:
+                pass
+        if "last_profile_created_time" in data:
+            try:
+                self._last_profile_created_time = float(data["last_profile_created_time"])
+            except Exception:
+                pass
+        if "total_generated_profiles" in data:
+            try:
+                self._total_generated_profiles = int(data["total_generated_profiles"])
+            except Exception:
+                pass
 
         try:
             served_cycle = set(json.loads(data.get("served_in_cycle_ids", "[]")))
@@ -96,6 +114,7 @@ class ChlopchainEconomySimulator:
             ("config_max_tps", str(self._max_tps)),
             ("config_interval_seconds", str(self._interval_seconds)),
             ("config_daily_pool_pct", str(self._daily_pool_pct)),
+            ("config_profiles_per_hour", str(self._profiles_per_hour)),
             ("config_is_running", "true" if self._is_running else "false"),
         ]
         conn.executemany(
@@ -126,6 +145,9 @@ class ChlopchainEconomySimulator:
             ("config_max_tps", str(self._max_tps)),
             ("config_interval_seconds", str(self._interval_seconds)),
             ("config_daily_pool_pct", str(self._daily_pool_pct)),
+            ("config_profiles_per_hour", str(self._profiles_per_hour)),
+            ("last_profile_created_time", str(self._last_profile_created_time)),
+            ("total_generated_profiles", str(self._total_generated_profiles)),
             ("config_is_running", "true" if self._is_running else "false"),
         ]
         conn.executemany(
@@ -346,6 +368,16 @@ class ChlopchainEconomySimulator:
             self._last_tick_count = len(minted_blocks)
             self._total_simulated = total_tx
 
+            # Sprawdź, czy należy automatycznie utworzyć profil wg suwaka profiles_per_hour
+            now_ts = time.time()
+            if self._profiles_per_hour > 0:
+                interval_per_profile = 3600.0 / self._profiles_per_hour
+                if (now_ts - self._last_profile_created_time) >= interval_per_profile:
+                    try:
+                        self.generate_profile()
+                    except Exception as p_err:
+                        logger.warning("Nie udało się automatycznie wygenerować profilu: %s", p_err)
+
             return {
                 "transactions_count": len(minted_blocks),
                 "cycle_number": cycle_num,
@@ -394,6 +426,10 @@ class ChlopchainEconomySimulator:
                 "max_tps": self._max_tps,
                 "interval_seconds": self._interval_seconds,
                 "daily_pool_pct": self._daily_pool_pct,
+                "profiles_per_hour": self._profiles_per_hour,
+                "profiles_growth_rate": f"{self._profiles_per_hour} profil/h" if self._profiles_per_hour > 0 else "Wyłączone",
+                "total_generated_profiles": self._total_generated_profiles,
+                "last_profile_created_time": self._last_profile_created_time,
                 "tps_range": f"{self._min_tps}-{self._max_tps} TPS",
                 "current_cycle": cycle_num,
                 "current_day": day_num,
@@ -417,6 +453,7 @@ class ChlopchainEconomySimulator:
         max_tps: Optional[int] = None,
         interval_seconds: Optional[float] = None,
         daily_pool_pct: Optional[int] = None,
+        profiles_per_hour: Optional[int] = None,
         is_running: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """Aktualizuje parametry pracy silnika ekonomii i trwale zapisuje je w bazie danych."""
@@ -428,6 +465,8 @@ class ChlopchainEconomySimulator:
             self._interval_seconds = max(0.05, min(10.0, float(interval_seconds)))
         if daily_pool_pct is not None:
             self._daily_pool_pct = max(5, min(95, int(daily_pool_pct)))
+        if profiles_per_hour is not None:
+            self._profiles_per_hour = max(0, min(120, int(profiles_per_hour)))
 
         if is_running is not None:
             if is_running and not self._is_running:
@@ -443,6 +482,38 @@ class ChlopchainEconomySimulator:
             conn.close()
 
         return self.get_status()
+
+    def generate_profile(self) -> Dict[str, Any]:
+        """Generuje losowy, w pełni poprawny profil chłopa i trwale zapisuje go w bazie danych."""
+        from app.database import generate_random_synthetic_profile
+        new_prof = generate_random_synthetic_profile()
+        self._total_generated_profiles += 1
+        self._last_profile_created_time = time.time()
+
+        conn = get_connection()
+        try:
+            with conn:
+                conn.executemany(
+                    """
+                    INSERT INTO economy_simulator_state (key, value)
+                    VALUES (?, ?)
+                    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                    """,
+                    [
+                        ("last_profile_created_time", str(self._last_profile_created_time)),
+                        ("total_generated_profiles", str(self._total_generated_profiles)),
+                    ],
+                )
+        finally:
+            conn.close()
+
+        logger.info(
+            "Silnik ekonomii wygenerował nowy profil w sieci: %s (id: %s, email: %s)",
+            new_prof.get("name"),
+            new_prof.get("id"),
+            new_prof.get("email"),
+        )
+        return new_prof
 
     def reset_cycle(self) -> Dict[str, Any]:
         """Resetuje stan cyklu symulatora ekonomii do Dnia 1 i czyści listy obsłużonych."""

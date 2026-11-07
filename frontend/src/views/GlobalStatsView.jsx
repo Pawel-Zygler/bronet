@@ -25,6 +25,9 @@ export function GlobalStatsView({ myProfile, onOpenProfile, onNavigate }) {
   const [maxTps, setMaxTps] = useState(5);
   const [intervalSec, setIntervalSec] = useState(1.0);
   const [dailyPoolPct, setDailyPoolPct] = useState(60);
+  const [profilesPerHour, setProfilesPerHour] = useState(1);
+  const [isGeneratingProfile, setIsGeneratingProfile] = useState(false);
+  const [profileGenStatus, setProfileGenStatus] = useState("");
   const [isRunning, setIsRunning] = useState(true);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [configSaveStatus, setConfigSaveStatus] = useState("");
@@ -42,6 +45,7 @@ export function GlobalStatsView({ myProfile, onOpenProfile, onNavigate }) {
           if (typeof data.simulator.max_tps === "number") setMaxTps(data.simulator.max_tps);
           if (typeof data.simulator.interval_seconds === "number") setIntervalSec(data.simulator.interval_seconds);
           if (typeof data.simulator.daily_pool_pct === "number") setDailyPoolPct(data.simulator.daily_pool_pct);
+          if (typeof data.simulator.profiles_per_hour === "number") setProfilesPerHour(data.simulator.profiles_per_hour);
           if (typeof data.simulator.is_running === "boolean") setIsRunning(data.simulator.is_running);
         }
       }
@@ -88,6 +92,7 @@ export function GlobalStatsView({ myProfile, onOpenProfile, onNavigate }) {
     let newMax = maxTps;
     let newInterval = intervalSec;
     let newPool = dailyPoolPct;
+    let newProfilesGrowth = profilesPerHour;
 
     if (param === "min_tps") {
       newMin = Number(val);
@@ -109,6 +114,9 @@ export function GlobalStatsView({ myProfile, onOpenProfile, onNavigate }) {
     } else if (param === "daily_pool_pct") {
       newPool = Number(val);
       setDailyPoolPct(newPool);
+    } else if (param === "profiles_per_hour") {
+      newProfilesGrowth = Number(val);
+      setProfilesPerHour(newProfilesGrowth);
     }
 
     if (debounceTimerRef.current) {
@@ -120,23 +128,55 @@ export function GlobalStatsView({ myProfile, onOpenProfile, onNavigate }) {
         max_tps: newMax,
         interval_seconds: newInterval,
         daily_pool_pct: newPool,
+        profiles_per_hour: newProfilesGrowth,
       });
     }, 350);
   };
 
-  const handleApplyPreset = (min, max, intv, pool) => {
+  const handleApplyPreset = (min, max, intv, pool, growth = 1) => {
     isUserInteractingRef.current = true;
     setMinTps(min);
     setMaxTps(max);
     setIntervalSec(intv);
     setDailyPoolPct(pool);
+    setProfilesPerHour(growth);
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     sendConfigUpdate({
       min_tps: min,
       max_tps: max,
       interval_seconds: intv,
       daily_pool_pct: pool,
+      profiles_per_hour: growth,
     });
+  };
+
+  const handleGenerateSingleProfile = async () => {
+    setIsGeneratingProfile(true);
+    setProfileGenStatus("Tworzenie nowego chłopa...");
+    try {
+      const res = await apiSend("/api/chlopocoin/simulator/generate-profile", "POST");
+      if (res && res.name) {
+        setProfileGenStatus(`✓ Utworzono chłopa: ${res.name} (📍 ${res.location_name || "Polska"})`);
+      } else {
+        setProfileGenStatus("✓ Nowy profil dodany do sieci");
+      }
+      setTimeout(() => setProfileGenStatus(""), 4000);
+      fetchStats(false);
+    } catch (err) {
+      setProfileGenStatus(`Błąd: ${err?.message || "Nie udało się utworzyć profilu"}`);
+      setTimeout(() => setProfileGenStatus(""), 4000);
+    } finally {
+      setIsGeneratingProfile(false);
+    }
+  };
+
+  const formatProfilesPerHour = (val) => {
+    if (val === 0) return "Wyłączone";
+    if (val === 1) return "1 profil / godz.";
+    if (val % 10 >= 2 && val % 10 <= 4 && (val % 100 < 10 || val % 100 >= 20)) {
+      return `${val} profile / godz.`;
+    }
+    return `${val} profili / godz.`;
   };
 
   const handleToggleRunning = async () => {
@@ -384,6 +424,33 @@ export function GlobalStatsView({ myProfile, onOpenProfile, onNavigate }) {
             </div>
           </div>
 
+          {/* Suwak 5: Tempo tworzenia nowych profili */}
+          <div className="sidebar-control-group">
+            <div className="slider-header">
+              <label htmlFor="slider-profiles-growth" className="slider-label">
+                🌱 Przyrost profili:
+              </label>
+              <span className="slider-val-badge" id="val-profiles-growth">
+                {formatProfilesPerHour(profilesPerHour)}
+              </span>
+            </div>
+            <input
+              type="range"
+              id="slider-profiles-growth"
+              className="economy-range-slider"
+              min="0"
+              max="60"
+              step="1"
+              value={profilesPerHour}
+              onChange={(e) => handleSliderChange("profiles_per_hour", e.target.value)}
+            />
+            <div className="slider-limits">
+              <span>0 (Wył.)</span>
+              <span>1 / godz.</span>
+              <span>60 / godz.</span>
+            </div>
+          </div>
+
           {/* Przyciski operacyjne */}
           <div className="sidebar-actions-group">
             <button
@@ -394,6 +461,23 @@ export function GlobalStatsView({ myProfile, onOpenProfile, onNavigate }) {
             >
               {isRunning ? "⏸️ Wstrzymaj silnik" : "▶️ Wznów silnik"}
             </button>
+
+            <button
+              type="button"
+              id="btn-generate-profile"
+              className="btn btn-secondary btn-sm btn-full"
+              onClick={handleGenerateSingleProfile}
+              disabled={isGeneratingProfile}
+              title="Wygeneruj natychmiast 1 losowy profil chłopa do bazy i sieci Chłopchain"
+            >
+              {isGeneratingProfile ? "Tworzenie chłopa..." : "👤 +1 Stwórz profil chłopa teraz"}
+            </button>
+
+            {profileGenStatus && (
+              <div className="sidebar-save-alert" style={{ background: "#ecfdf5", color: "#065f46", border: "1px solid #a7f3d0" }} role="status">
+                {profileGenStatus}
+              </div>
+            )}
 
             <div className="tick-force-row">
               <button
@@ -430,7 +514,7 @@ export function GlobalStatsView({ myProfile, onOpenProfile, onNavigate }) {
               type="button"
               id="btn-default-config"
               className="btn btn-ghost btn-sm btn-full"
-              onClick={() => handleApplyPreset(1, 5, 1.0, 60)}
+              onClick={() => handleApplyPreset(1, 5, 1.0, 60, 1)}
             >
               ⚙️ Przywróć domyślne (1–5 TPS)
             </button>
@@ -441,6 +525,14 @@ export function GlobalStatsView({ myProfile, onOpenProfile, onNavigate }) {
             <div className="telemetry-item">
               <span>Łącznie transakcji:</span>
               <strong>{stats?.simulator?.total_simulated_transactions ?? "—"}</strong>
+            </div>
+            <div className="telemetry-item">
+              <span>Przyrost profili:</span>
+              <strong id="telemetry-profiles-growth">{stats?.simulator?.profiles_growth_rate || formatProfilesPerHour(profilesPerHour)}</strong>
+            </div>
+            <div className="telemetry-item">
+              <span>Wygenerowane profile:</span>
+              <strong id="telemetry-total-generated">{stats?.simulator?.total_generated_profiles ?? 0}</strong>
             </div>
             <div className="telemetry-item">
               <span>Ostatni tick:</span>
@@ -606,6 +698,12 @@ export function GlobalStatsView({ myProfile, onOpenProfile, onNavigate }) {
             <div className="engine-mini-stat">
               <span className="mini-label">Zrealizowano transakcji:</span>
               <span className="mini-val">{stats.simulator.total_simulated_transactions}</span>
+            </div>
+            <div className="engine-mini-stat">
+              <span className="mini-label">Przyrost profili:</span>
+              <span className="mini-val" id="engine-profiles-growth-val">
+                {stats.simulator.profiles_growth_rate || `${stats.simulator.profiles_per_hour ?? 1} profil/h`}
+              </span>
             </div>
             <div className="engine-mini-stat">
               <span className="mini-label">Status węzła:</span>

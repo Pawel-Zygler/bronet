@@ -307,7 +307,7 @@ export function GlobalChat({ myProfile, onOpenProfile, directPartner, onClearDir
   const handleClearHistory = async () => {
     if (!selectedPartner || !myProfile?.id) return;
     const ok = window.confirm(
-      `Czy na pewno chcesz wyczyścić całą historię czatu z ${selectedPartner.name}?`
+      `Czy na pewno chcesz wyczyścić całą historię chłopczatu z ${selectedPartner.name}?`
     );
     if (!ok) return;
 
@@ -370,7 +370,7 @@ export function GlobalChat({ myProfile, onOpenProfile, directPartner, onClearDir
     <aside
       className={`global-chat-widget ${isOpen ? "is-open" : "is-collapsed"}`}
       id="global-chat-widget"
-      aria-label="Czat i wiadomości chłopów"
+      aria-label="Chłopczat i wiadomości"
     >
       {/* Pływający przycisk rozwijania (gdy zminimalizowany) */}
       {!isOpen && (
@@ -381,10 +381,10 @@ export function GlobalChat({ myProfile, onOpenProfile, directPartner, onClearDir
           onClick={toggleOpen}
           aria-expanded="false"
           aria-controls="chat-window-content"
-          title="Otwórz czat i wiadomości"
+          title="Otwórz Chłopczat i wiadomości"
         >
           <span className="chat-pill-icon" aria-hidden="true">💬</span>
-          <span className="chat-pill-text">Czat Chłopów</span>
+          <span className="chat-pill-text">Chłopczat</span>
           <span className="chat-live-pulse-dot" aria-hidden="true" />
           {totalUnreadAll > 0 && (
             <span className="chat-unread-badge" id="chat-unread-badge">
@@ -402,7 +402,7 @@ export function GlobalChat({ myProfile, onOpenProfile, directPartner, onClearDir
             <div className="chat-header-title-group">
               <span className="chat-header-icon" aria-hidden="true">💬</span>
               <div>
-                <h3 className="chat-header-title">Globalny Czat &amp; Wiadomości</h3>
+                <h3 className="chat-header-title">Chłopczat &amp; Wiadomości</h3>
                 <span className="chat-header-status">
                   <span className="chat-live-dot" aria-hidden="true" />
                   Live na żywo (komputer ↔ telefon)
@@ -415,15 +415,15 @@ export function GlobalChat({ myProfile, onOpenProfile, directPartner, onClearDir
                 id="btn-close-global-chat"
                 className="chat-btn-header-minimize"
                 onClick={toggleOpen}
-                title="Zminimalizuj czat"
-                aria-label="Zminimalizuj czat"
+                title="Zminimalizuj Chłopczat"
+                aria-label="Zminimalizuj Chłopczat"
               >
                 —
               </button>
             </div>
           </div>
 
-          {/* Przełącznik zakładek: [💬 Globalny Czat] | [✉️ Prywatne (DM)] */}
+          {/* Przełącznik zakładek: [💬 Chłopczat] | [✉️ Prywatne (DM)] */}
           <div className="chat-tabs-bar" role="tablist">
             <button
               type="button"
@@ -436,7 +436,7 @@ export function GlobalChat({ myProfile, onOpenProfile, directPartner, onClearDir
                 setGlobalUnreadCount(0);
               }}
             >
-              💬 Globalny Czat
+              💬 Chłopczat
               {globalUnreadCount > 0 && (
                 <span className="chat-tab-badge">+{globalUnreadCount}</span>
               )}
@@ -569,7 +569,7 @@ export function GlobalChat({ myProfile, onOpenProfile, directPartner, onClearDir
                   type="text"
                   id="chat-message-input"
                   className="chat-input-field"
-                  placeholder="Napisz na czacie... (Enter)"
+                  placeholder="Napisz na chłopczacie... (Enter)"
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   disabled={isSending}
@@ -581,7 +581,7 @@ export function GlobalChat({ myProfile, onOpenProfile, directPartner, onClearDir
                   id="btn-send-chat"
                   className="btn btn-primary chat-btn-send"
                   disabled={!inputValue.trim() || isSending}
-                  title="Wyślij wiadomość"
+                  title="Wyślij wiadomość na chłopczacie"
                 >
                   {isSending ? "..." : "Wyślij"}
                 </button>
@@ -816,7 +816,7 @@ export function GlobalChat({ myProfile, onOpenProfile, directPartner, onClearDir
                                   <span className="chat-conv-snippet">
                                     {user.can_help && user.can_help.length > 0
                                       ? `Pomaga z: ${user.can_help.slice(0, 2).join(", ")}`
-                                      : "Kliknij, aby rozpocząć czat prywatny"}
+                                      : "Kliknij, aby rozpocząć prywatny chłopczat"}
                                   </span>
                                   <span className="chat-search-start-badge">Napisz →</span>
                                 </div>

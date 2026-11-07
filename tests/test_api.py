@@ -368,20 +368,22 @@ class BronetBackendTest(unittest.TestCase):
     def test_economy_engine_controls_and_sliders(self) -> None:
         """
         Weryfikuje dynamiczne suwaki i kontrolki ekonomii:
-        - Zmiana min_tps, max_tps, interval_seconds, daily_pool_pct
+        - Zmiana min_tps, max_tps, interval_seconds, daily_pool_pct, profiles_per_hour
+        - Tworzenie nowych profili w silniku (np. 1 profil na godzinę lub generowanie na żądanie)
         - Reset cyklu do Dnia 1
         - Włączanie/wyłączanie pętli (toggle)
         """
         import asyncio
         from app.economy_engine import economy_simulator
 
-        # 1. Zmiana parametrów suwakami
+        # 1. Zmiana parametrów suwakami (w tym profiles_per_hour)
         async def run_config():
             return await economy_simulator.update_config(
                 min_tps=3,
                 max_tps=8,
                 interval_seconds=0.5,
                 daily_pool_pct=75,
+                profiles_per_hour=5,
             )
 
         updated = asyncio.run(run_config())
@@ -389,21 +391,36 @@ class BronetBackendTest(unittest.TestCase):
         self.assertEqual(updated["max_tps"], 8)
         self.assertEqual(updated["interval_seconds"], 0.5)
         self.assertEqual(updated["daily_pool_pct"], 75)
+        self.assertEqual(updated["profiles_per_hour"], 5)
         self.assertEqual(updated["tps_range"], "3-8 TPS")
 
-        # 2. Reset cyklu
+        # 2. Generowanie nowego profilu syntetycznego
+        initial_gen_count = updated.get("total_generated_profiles", 0)
+        new_prof = economy_simulator.generate_profile()
+        self.assertIsNotNone(new_prof)
+        self.assertIn("id", new_prof)
+        self.assertTrue(len(new_prof["name"]) > 2)
+        self.assertTrue(len(new_prof["can_help"]) >= 2)
+        self.assertTrue(new_prof["email"].endswith("@bronet.pl"))
+
+        status = economy_simulator.get_status()
+        self.assertEqual(status["total_generated_profiles"], initial_gen_count + 1)
+        self.assertEqual(status["profiles_per_hour"], 5)
+
+        # 3. Reset cyklu
         res = economy_simulator.reset_cycle()
         self.assertEqual(res["current_cycle"], 1)
         self.assertEqual(res["current_day"], 1)
         self.assertEqual(res["daily_served_count"], 0)
 
-        # 3. Przywrócenie domyślnych parametrów
+        # 4. Przywrócenie domyślnych parametrów
         async def run_reset_defaults():
             return await economy_simulator.update_config(
                 min_tps=1,
                 max_tps=5,
                 interval_seconds=1.0,
                 daily_pool_pct=60,
+                profiles_per_hour=1,
             )
 
         defaults = asyncio.run(run_reset_defaults())
@@ -411,6 +428,7 @@ class BronetBackendTest(unittest.TestCase):
         self.assertEqual(defaults["max_tps"], 5)
         self.assertEqual(defaults["interval_seconds"], 1.0)
         self.assertEqual(defaults["daily_pool_pct"], 60)
+        self.assertEqual(defaults["profiles_per_hour"], 1)
 
     def test_global_chat_persistence_and_listing(self) -> None:
         """Weryfikuje globalny czat chłopów (tworzenie i pobieranie wiadomości)."""
@@ -483,6 +501,19 @@ class BronetBackendTest(unittest.TestCase):
         )
         self.assertEqual(res_admin_auth.status_code, 200)
         self.assertIn("cycle_number", res_admin_auth.json())
+
+        # 5. Generowanie profilu bez uprawnień vs z uprawnieniem admina
+        res_gen_no_auth = client.post("/api/chlopocoin/simulator/generate-profile")
+        self.assertEqual(res_gen_no_auth.status_code, 403)
+
+        res_gen_admin = client.post(
+            "/api/chlopocoin/simulator/generate-profile",
+            headers={"X-Admin-Email": "pawel.zygler@gmail.com"},
+        )
+        self.assertEqual(res_gen_admin.status_code, 200)
+        created_gen = res_gen_admin.json()
+        self.assertIn("name", created_gen)
+        self.assertIn("location_name", created_gen)
 
     def test_direct_messages_and_chat_history_options(self) -> None:
         """

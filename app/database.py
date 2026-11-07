@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 import os
+import random
 import re
 import secrets
 import sqlite3
@@ -562,7 +563,7 @@ def init_db(seed: bool = True) -> None:
             if chat_count == 0:
                 now_iso = datetime.now(timezone.utc).isoformat()
                 seed_messages = [
-                    (None, "Marek (Warszawa)", "Siemanko chłopy! Działa globalny czat na żywo z telefonu i komputera. 🤝", now_iso),
+                    (None, "Marek (Warszawa)", "Siemanko chłopy! Działa Chłopczat na żywo z telefonu i komputera. 🤝", now_iso),
                     (None, "Tomek (Wrocław)", "Potwierdzam, widać wiadomości natychmiastowo. Piszcie śmiało jak ktoś potrzebuje pomocy!", now_iso),
                 ]
                 conn.executemany(
@@ -1922,3 +1923,76 @@ def get_unread_dm_count(user_id: int) -> int:
             (user_id,),
         ).fetchone()
         return row["c"] if row else 0
+
+
+SYNTHETIC_MALE_FIRST_NAMES = [
+    "Andrzej", "Bartek", "Bogdan", "Cezary", "Damian", "Dariusz", "Dawid", "Filip",
+    "Grzegorz", "Hubert", "Igor", "Jacek", "Jan", "Jarosław", "Kamil", "Karol",
+    "Krzysztof", "Łukasz", "Maciej", "Marcin", "Marek", "Mariusz", "Mateusz", "Michał",
+    "Norbert", "Paweł", "Piotr", "Przemysław", "Radosław", "Rafał", "Robert", "Sebastian",
+    "Stanisław", "Szymon", "Tomasz", "Wiesław", "Wiktor", "Wojciech", "Zbigniew",
+]
+
+SYNTHETIC_MALE_SURNAMES = [
+    "Kowalski", "Nowak", "Wiśniewski", "Wójcik", "Kowalczyk", "Kamiński", "Lewandowski",
+    "Zieliński", "Szymański", "Woźniak", "Dąbrowski", "Kozłowski", "Jankowski", "Mazur",
+    "Kwiatkowski", "Krawczyk", "Piotrowski", "Grabowski", "Nowakowski", "Pawłowski",
+    "Michalski", "Nowicki", "Adamczyk", "Dudek", "Zając", "Wieczorek", "Jabłoński",
+    "Majewski", "Olszewski", "Jaworski", "Malinowski", "Pawlak", "Górski", "Witkowski",
+    "Walczak", "Sikora", "Baran", "Rutkowski", "Michalak", "Szewczyk",
+]
+
+SYNTHETIC_SKILLS_POOL = [
+    "spawanie", "mechanika samochodowa", "programowanie", "it", "qa", "testowanie",
+    "elektryka", "hydraulika", "finanse", "podatki b2b", "stolarka", "budownictwo",
+    "remonty", "motoryzacja", "trening siłowy", "bieganie", "dietetyka", "ux/ui",
+    "grafika", "zarządzanie projektami", "prawo", "umowy", "angielski", "niemiecki",
+    "fotografia", "audio", "ogrodnictwo", "blacharstwo", "elektronika", "majsterkowanie",
+    "logistyka", "marketing", "stolarstwo", "klimatyzacja", "fotowoltaika",
+]
+
+
+def generate_random_synthetic_profile() -> Dict[str, Any]:
+    """Generuje losowy, w pełni poprawny męski profil chłopa do bazy danych."""
+    first_name = random.choice(SYNTHETIC_MALE_FIRST_NAMES)
+    surname = random.choice(SYNTHETIC_MALE_SURNAMES)
+    full_name = f"{first_name} {surname}"
+
+    city, lat, lng = random.choice(PL_CITIES)
+
+    shuffled_skills = list(SYNTHETIC_SKILLS_POOL)
+    random.shuffle(shuffled_skills)
+    can_help_count = random.randint(2, 4)
+    can_help = shuffled_skills[:can_help_count]
+
+    remaining_skills = shuffled_skills[can_help_count:]
+    need_help_count = random.randint(1, 3)
+    need_help = remaining_skills[:need_help_count]
+
+    suffix = random.randint(100, 99999)
+    email_user = f"{normalize_text(first_name)}.{normalize_text(surname)}.{suffix}".replace(" ", "")
+    email = f"{email_user}@bronet.pl"
+
+    bio_templates = [
+        f"Chłop z miasta {city}. Znam się na {can_help[0]} i chętnie pomogę braciom. Szukam pomocy z {need_help[0]}.",
+        f"Działam w branży {can_help[0]}. Mogę pomóc z {', '.join(can_help)}. Potrzebuję kogoś ogarniętego do {need_help[0]}.",
+        f"Cześć bracia! Mieszkam w {city}. Jeśli potrzebujesz wsparcia z {can_help[0]}, pisz śmiało. Sam chętnie skorzystam z pomocy w {need_help[0]}.",
+        f"Praktyk z wieloletnim doświadczeniem w {can_help[0]}. Wymienię wiedzę i pomoc na wsparcie z {need_help[0]}.",
+    ]
+    bio = random.choice(bio_templates)
+
+    payload = {
+        "name": full_name,
+        "email": email,
+        "password": "haslo123chlop",
+        "can_help": can_help,
+        "need_help": need_help,
+        "contact": email,
+        "bio": bio,
+        "location_name": city,
+        "lat": lat,
+        "lng": lng,
+        "share_location": True,
+        "role": "user",
+    }
+    return create_profile(payload)
