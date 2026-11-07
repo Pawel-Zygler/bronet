@@ -98,6 +98,15 @@ export function Topbar({
                 Rankingi
               </a>
               <a
+                href="/osiagniecia"
+                id="nav-link-achievements"
+                aria-current={activeNav === "achievements" ? "page" : undefined}
+                className={`nav-link ${activeNav === "achievements" ? "is-active" : ""}`}
+                onClick={(e) => handleLink(e, "/osiagniecia")}
+              >
+                🏆 Osiągnięcia
+              </a>
+              <a
                 href="/profil"
                 aria-current={activeNav === "profile" ? "page" : undefined}
                 className={`nav-link ${activeNav === "profile" ? "is-active" : ""}`}

@@ -4,6 +4,7 @@ import { apiGet, apiSend } from "../api";
 const DETAIL_TABS = [
   { key: "skills", label: "Umiejętności" },
   { key: "wallet", label: "🪙 Portfel Coinów" },
+  { key: "achievements", label: "🏆 Osiągnięcia" },
   { key: "contact", label: "Kontakt" },
   { key: "bio", label: "O mnie" },
 ];
@@ -30,6 +31,11 @@ export function ProfileDetailView({
   const [walletStats, setWalletStats] = useState(null);
   const [loadingWallet, setLoadingWallet] = useState(false);
   const [visibleWalletBlocksCount, setVisibleWalletBlocksCount] = useState(6);
+
+  // Osiągnięcia i punkty chwały tego profilu
+  const [profileAchievements, setProfileAchievements] = useState(null);
+  const [loadingAchievements, setLoadingAchievements] = useState(false);
+  const [achievementsFilter, setAchievementsFilter] = useState("all");
 
   // Chłopocoin (ekonomia wzajemnej pomocy 2/2)
   const [coinStatus, setCoinStatus] = useState({
@@ -109,8 +115,23 @@ export function ProfileDetailView({
       });
   };
 
+  const fetchProfileAchievements = (idToFetch) => {
+    const pid = idToFetch || profileId || profile?.id;
+    if (!pid) return;
+    setLoadingAchievements(true);
+    apiGet(`/api/achievements/profile/${pid}`)
+      .then((data) => {
+        setProfileAchievements(data);
+      })
+      .catch(() => {})
+      .finally(() => {
+        setLoadingAchievements(false);
+      });
+  };
+
   useEffect(() => {
     fetchWalletStats(profileId);
+    fetchProfileAchievements(profileId);
   }, [profileId]);
 
   // Akcja potwierdzenia pomocy i przyznania Chłopocoina (konsensus 2/2)
@@ -227,15 +248,26 @@ export function ProfileDetailView({
                   </button>
                 )}
               </div>
-              <button
-                type="button"
-                className="profile-coin-pill clickable-pill"
-                id="detail-coin-pill"
-                onClick={() => setActiveTab("wallet")}
-                title="Kliknij, aby otworzyć portfel i historię bloków Chłopchain tego profilu"
-              >
-                🪙 <strong id="detail-profile-coins">{walletStats?.balance ?? profile.chlopocoin_balance ?? 0}</strong> CC
-              </button>
+              <div className="profile-pills-row" style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                <button
+                  type="button"
+                  className="profile-coin-pill clickable-pill"
+                  id="detail-coin-pill"
+                  onClick={() => setActiveTab("wallet")}
+                  title="Kliknij, aby otworzyć portfel i historię bloków Chłopchain tego profilu"
+                >
+                  🪙 <strong id="detail-profile-coins">{walletStats?.balance ?? profile.chlopocoin_balance ?? 0}</strong> CC
+                </button>
+                <button
+                  type="button"
+                  className="profile-achievement-pill clickable-pill"
+                  id="detail-achievement-pill"
+                  onClick={() => setActiveTab("achievements")}
+                  title="Kliknij, aby otworzyć osiągnięcia i punkty chwały tego chłopa"
+                >
+                  ⭐ <strong id="detail-profile-ach-points">{profileAchievements?.total_points ?? profile.achievement_points ?? 0}</strong> PKT
+                </button>
+              </div>
             </div>
 
             {/* Panel Chłopocoinów (Gdy jesteś zalogowany i oglądasz profil innego chłopa) */}
@@ -563,6 +595,174 @@ export function ProfileDetailView({
                     </p>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* ================= ZAKŁADKA 3: OSIĄGNIĘCIA & GAMIFIKACJA ================= */}
+            <div
+              id="detail-panel-achievements"
+              role="tabpanel"
+              aria-labelledby="detail-tab-achievements"
+              className="profile-tab-panel"
+              hidden={activeTab !== "achievements"}
+            >
+              <div className="profile-achievements-container" id="profile-achievements-container">
+                {/* Hero karta osiągnięć chłopa */}
+                <div className="profile-ach-hero-card" id="detail-achievements-hero">
+                  <div className="profile-ach-hero-content">
+                    <span className="profile-ach-hero-icon" aria-hidden="true">🏆</span>
+                    <div>
+                      <h3 className="profile-ach-hero-title">
+                        Osiągnięcia i Punkty Chwały
+                      </h3>
+                      <p className="profile-ach-hero-sub">
+                        Odznaczenia zdobyte przez tego chłopa za pomoc, transakcje na Chłopchainie i aktywność w społeczności.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="profile-ach-score-box">
+                    <span className="profile-ach-points-val" id="detail-ach-total-points">
+                      ⭐ {profileAchievements?.total_points || 0}
+                    </span>
+                    <span className="profile-ach-points-label">Punktów Chwały</span>
+                  </div>
+                </div>
+
+                {/* Pasek postępu profilu */}
+                <div className="profile-ach-progress-card">
+                  <div className="profile-ach-progress-header">
+                    <span>
+                      Odblokowane odznaczenia:{" "}
+                      <strong>
+                        {profileAchievements?.unlocked_count || 0} z {profileAchievements?.total_count || 0}
+                      </strong>
+                    </span>
+                    <span className="profile-ach-pct">
+                      {profileAchievements?.progress_pct || 0}% ukończono
+                    </span>
+                  </div>
+                  <div className="profile-ach-bar-track">
+                    <div
+                      className="profile-ach-bar-fill"
+                      style={{ width: `${profileAchievements?.progress_pct || 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Filtry: Wszystkie | Odblokowane | Do zdobycia */}
+                <div className="profile-ach-filter-pills" role="tablist">
+                  <button
+                    type="button"
+                    role="tab"
+                    id="ach-filter-all"
+                    className={`filter-pill ${achievementsFilter === "all" ? "is-active" : ""}`}
+                    aria-selected={achievementsFilter === "all"}
+                    onClick={() => setAchievementsFilter("all")}
+                  >
+                    Wszystkie ({profileAchievements?.total_count || 0})
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    id="ach-filter-unlocked"
+                    className={`filter-pill ${achievementsFilter === "unlocked" ? "is-active" : ""}`}
+                    aria-selected={achievementsFilter === "unlocked"}
+                    onClick={() => setAchievementsFilter("unlocked")}
+                  >
+                    Odblokowane ({profileAchievements?.unlocked_count || 0})
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    id="ach-filter-locked"
+                    className={`filter-pill ${achievementsFilter === "locked" ? "is-active" : ""}`}
+                    aria-selected={achievementsFilter === "locked"}
+                    onClick={() => setAchievementsFilter("locked")}
+                  >
+                    Do zdobycia ({profileAchievements?.locked_count || 0})
+                  </button>
+                </div>
+
+                {/* Siatka osiągnięć profilu */}
+                <div className="profile-ach-grid" id="detail-achievements-grid">
+                  {loadingAchievements && !profileAchievements ? (
+                    <div className="loading-state">
+                      <div className="spinner" aria-hidden="true" />
+                      <p>Wczytywanie osiągnięć chłopa...</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Osiągnięcia odblokowane */}
+                      {(achievementsFilter === "all" || achievementsFilter === "unlocked") &&
+                        (profileAchievements?.unlocked || []).map((ach) => (
+                          <div
+                            key={ach.id}
+                            className={`profile-ach-card is-unlocked rarity-${ach.rarity} ${ach.is_server_first ? "is-server-first" : ""}`}
+                            id={`profile-ach-unlocked-${ach.id}`}
+                          >
+                            <div className="p-ach-top">
+                              <span className="p-ach-icon" aria-hidden="true">{ach.icon}</span>
+                              <div className="p-ach-titles">
+                                <span className="p-ach-badge">
+                                  {ach.is_server_first ? "⚡ SERVER FIRST" : "✓ ODBLOKOWANE"}
+                                </span>
+                                <h4 className="p-ach-title">{ach.title}</h4>
+                              </div>
+                              <div className="p-ach-points">+{ach.points} PKT</div>
+                            </div>
+                            <p className="p-ach-desc">{ach.description}</p>
+                            <div className="p-ach-footer">
+                              <span className="p-ach-date">
+                                📅 Zdobyto: {new Date(ach.achieved_at).toLocaleDateString("pl-PL")}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+
+                      {/* Osiągnięcia zablokowane */}
+                      {(achievementsFilter === "all" || achievementsFilter === "locked") &&
+                        (profileAchievements?.locked || []).map((ach) => (
+                          <div
+                            key={ach.id}
+                            className={`profile-ach-card is-locked rarity-${ach.rarity}`}
+                            id={`profile-ach-locked-${ach.id}`}
+                          >
+                            <div className="p-ach-top">
+                              <span className="p-ach-icon locked-icon" aria-hidden="true">🔒</span>
+                              <div className="p-ach-titles">
+                                <span className="p-ach-badge locked-badge">ZABLOKOWANE</span>
+                                <h4 className="p-ach-title">{ach.title}</h4>
+                              </div>
+                              <div className="p-ach-points locked-points">+{ach.points} PKT</div>
+                            </div>
+                            <p className="p-ach-desc">{ach.description}</p>
+                            <div className="p-ach-footer">
+                              {ach.is_already_claimed ? (
+                                <span className="p-ach-claimed-notice">
+                                  🔒 Realm First zdobyty już przez innego chłopa
+                                </span>
+                              ) : (
+                                <div className="p-ach-progress-wrap">
+                                  <div className="p-ach-progress-text">
+                                    <span>Postęp:</span>
+                                    <strong>
+                                      {ach.current_val} / {ach.target_val} ({ach.progress_pct}%)
+                                    </strong>
+                                  </div>
+                                  <div className="p-ach-mini-bar">
+                                    <div
+                                      className="p-ach-mini-fill"
+                                      style={{ width: `${ach.progress_pct}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 

@@ -3,6 +3,8 @@ import { apiGet } from "./api";
 import { GlobalChat } from "./components/GlobalChat";
 import { MobileNav } from "./components/MobileNav";
 import { Topbar } from "./components/Topbar";
+import { WowAchievementNotification } from "./components/WowAchievementNotification";
+import { AchievementsView } from "./views/AchievementsView";
 import { GlobalStatsView } from "./views/GlobalStatsView";
 import { HomeView } from "./views/HomeView";
 import { MatchingView } from "./views/MatchingView";
@@ -39,6 +41,9 @@ function parseRoute(pathname) {
   }
   if (pathname === "/rankingi" || pathname === "/ranking") {
     return { view: "rankings", nav: "rankings", profileId: null };
+  }
+  if (pathname === "/osiagniecia" || pathname === "/achievements") {
+    return { view: "achievements", nav: "achievements", profileId: null };
   }
   const match = pathname.match(/^\/profil\/(\d+)$/);
   if (match) {
@@ -394,6 +399,14 @@ export function App() {
           />
         )}
 
+        {route.view === "achievements" && (
+          <AchievementsView
+            myProfile={myProfile}
+            onOpenProfile={handleOpenProfile}
+            onNavigate={navigate}
+          />
+        )}
+
         {route.view === "editor" && (
           <ProfileEditorView
             myProfile={myProfile}
@@ -434,6 +447,8 @@ export function App() {
       </main>
 
       <GlobalChat myProfile={myProfile} onOpenProfile={handleOpenProfile} />
+
+      <WowAchievementNotification myProfile={myProfile} onNavigate={navigate} />
 
       <MobileNav activeNav={route.nav} myProfile={myProfile} onNavigate={navigate} />
     </>

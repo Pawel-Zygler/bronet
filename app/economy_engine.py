@@ -11,6 +11,8 @@ from app.database import (
     BLOCKCHAIN_LOCK,
     get_connection,
     update_cached_balances,
+    evaluate_achievements_for_profile,
+    update_billboard_leader_state,
 )
 
 logger = logging.getLogger("bronet.economy_engine")
@@ -214,6 +216,10 @@ class ChlopchainEconomySimulator:
                     # Sprawdź, czy dzisiejsza pula została zrealizowana
                     if len(served_today) >= daily_target:
                         day_num += 1
+                        try:
+                            update_billboard_leader_state(conn, advance_day=True)
+                        except Exception:
+                            pass
                         served_today = set()
                         unserved = [
                             pid for pid in all_ids if pid not in served_in_cycle
@@ -326,6 +332,11 @@ class ChlopchainEconomySimulator:
                             "UPDATE profiles SET chlopocoin_balance = chlopocoin_balance + 1 WHERE id IN (?, ?)",
                             (p1, p2),
                         )
+                        try:
+                            evaluate_achievements_for_profile(conn, p1)
+                            evaluate_achievements_for_profile(conn, p2)
+                        except Exception:
+                            pass
 
                     # Zaktualizuj stan puli
                     served_today.add(p_a)

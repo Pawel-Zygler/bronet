@@ -55,6 +55,7 @@ class ProfileResponse(BaseModel):
     lng: Optional[float] = None
     share_location: Optional[bool] = False
     chlopocoin_balance: Optional[int] = 0
+    achievement_points: Optional[int] = 0
     role: str = "user"
     created_at: str
     updated_at: str

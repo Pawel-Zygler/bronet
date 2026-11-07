@@ -70,6 +70,19 @@ export function MobileNav({ activeNav, myProfile, onNavigate }) {
         <span>Rankingi</span>
       </a>
       <a
+        href="/osiagniecia"
+        id="mobile-nav-link-achievements"
+        aria-current={activeNav === "achievements" ? "page" : undefined}
+        className={`mobile-nav-item ${activeNav === "achievements" ? "is-active" : ""}`}
+        onClick={(e) => handleLink(e, "/osiagniecia")}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+          <circle cx="12" cy="8" r="6" />
+          <path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11" />
+        </svg>
+        <span>Osiągnięcia</span>
+      </a>
+      <a
         href="/profil"
         aria-current={activeNav === "profile" ? "page" : undefined}
         className={`mobile-nav-item ${activeNav === "profile" ? "is-active" : ""}`}

@@ -35,6 +35,13 @@ from app.database import (
     get_unread_dm_count,
     list_profiles,
     update_profile,
+    get_db,
+    get_global_achievements_feed,
+    get_profile_achievements,
+    pop_achievement_notifications,
+    evaluate_achievements_for_profile,
+    evaluate_all_achievements,
+    update_billboard_leader_state,
 )
 from app.models import (
     ChatMessagePayload,
@@ -73,6 +80,8 @@ async def revalidate_static_and_spa(request: Request, call_next):
         or path.startswith("/dopasowania")
         or path.startswith("/chlopchain")
         or path.startswith("/rankingi")
+        or path.startswith("/osiagniecia")
+        or path.startswith("/achievements")
         or path.startswith("/statystyki")
         or path.startswith("/static/")
     ):
@@ -411,6 +420,50 @@ def api_dm_unread_count(
     return {"unread_count": get_unread_dm_count(uid)}
 
 
+# ============================================================================
+# API OSIĄGNIĘĆ & GAMIFIKACJI (WORLD OF WARCRAFT STYLE)
+# ============================================================================
+
+@app.get("/api/achievements/global")
+def api_achievements_global() -> dict:
+    return get_global_achievements_feed()
+
+
+@app.get("/api/achievements/profile/{profile_id}")
+def api_achievements_profile(profile_id: int) -> dict:
+    try:
+        return get_profile_achievements(profile_id)
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.get("/api/achievements/notifications")
+def api_achievements_notifications(
+    profile_id: Optional[int] = Query(default=None),
+    x_profile_id: Optional[int] = Header(default=None, alias="X-Profile-Id"),
+) -> List[dict]:
+    uid = profile_id or x_profile_id
+    if not uid:
+        return []
+    return pop_achievement_notifications(uid)
+
+
+@app.post("/api/achievements/evaluate")
+def api_evaluate_achievements(
+    profile_id: Optional[int] = Query(default=None),
+    billboard_force_days: Optional[int] = Query(default=None),
+) -> dict:
+    with get_db() as conn:
+        if billboard_force_days is not None:
+            update_billboard_leader_state(conn, force_days=billboard_force_days)
+        if profile_id:
+            unlocked = evaluate_achievements_for_profile(conn, profile_id)
+            return {"profile_id": profile_id, "newly_unlocked": unlocked}
+        else:
+            cnt = evaluate_all_achievements(conn)
+            return {"evaluated_count": cnt}
+
+
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
@@ -433,6 +486,8 @@ def redirect_statystyki() -> RedirectResponse:
 @app.get("/dopasowania", include_in_schema=False)
 @app.get("/chlopchain", include_in_schema=False)
 @app.get("/rankingi", include_in_schema=False)
+@app.get("/osiagniecia", include_in_schema=False)
+@app.get("/achievements", include_in_schema=False)
 @app.get("/profil", include_in_schema=False)
 @app.get("/profil/{profile_id}", include_in_schema=False)
 def serve_spa(profile_id: str = "") -> FileResponse:

@@ -305,6 +305,190 @@ SEED_PROFILES = [
 ]
 
 
+ACHIEVEMENTS_SEED = [
+    {
+        "id": "first_aid_1",
+        "title": "Pierwsza pomoc!",
+        "description": "Zdobądź swój 1. Chłopocoin (+1 CC) za bezinteresowną pomoc innemu chłopowi.",
+        "category": "first_aid",
+        "rarity": "common",
+        "points": 10,
+        "icon": "🩹",
+        "is_server_first": 0,
+        "criteria_type": "coins_ge",
+        "criteria_value": 1,
+    },
+    {
+        "id": "first_aid_2",
+        "title": "Pomocna dłoń",
+        "description": "Zgromadź 5 Chłopocoinów pomagając sąsiadom w potrzebie.",
+        "category": "first_aid",
+        "rarity": "rare",
+        "points": 25,
+        "icon": "🤝",
+        "is_server_first": 0,
+        "criteria_type": "coins_ge",
+        "criteria_value": 5,
+    },
+    {
+        "id": "first_aid_3",
+        "title": "Mistrz pierwszej pomocy",
+        "description": "Zgromadź 25 Chłopocoinów w swoim portfelu na Chłopchainie.",
+        "category": "first_aid",
+        "rarity": "epic",
+        "points": 50,
+        "icon": "⭐",
+        "is_server_first": 0,
+        "criteria_type": "coins_ge",
+        "criteria_value": 25,
+    },
+    {
+        "id": "first_aid_4",
+        "title": "Chłopski filantrop",
+        "description": "Osiągnij imponujące 50 Chłopocoinów wypracowanych w sieci.",
+        "category": "first_aid",
+        "rarity": "legendary",
+        "points": 100,
+        "icon": "💎",
+        "is_server_first": 0,
+        "criteria_type": "coins_ge",
+        "criteria_value": 50,
+    },
+    {
+        "id": "first_aid_5",
+        "title": "Arcychłop dobrodziej",
+        "description": "Zgromadź 100 Chłopocoinów — legendarna ranga dobroczynności na Chłopchainie.",
+        "category": "first_aid",
+        "rarity": "realm_first",
+        "points": 200,
+        "icon": "👑",
+        "is_server_first": 0,
+        "criteria_type": "coins_ge",
+        "criteria_value": 100,
+    },
+    {
+        "id": "server_first_10",
+        "title": "Server first: 10 Coinów!",
+        "description": "Pierwszy chłop na całym serwerze, który zdobył 10 Chłopocoinów.",
+        "category": "server_first",
+        "rarity": "realm_first",
+        "points": 100,
+        "icon": "⚡",
+        "is_server_first": 1,
+        "criteria_type": "server_first_coins",
+        "criteria_value": 10,
+    },
+    {
+        "id": "server_first_50",
+        "title": "Server first: 50 Coinów!",
+        "description": "Pierwszy chłop na całym serwerze, który zdobył 50 Chłopocoinów.",
+        "category": "server_first",
+        "rarity": "realm_first",
+        "points": 200,
+        "icon": "🌟",
+        "is_server_first": 1,
+        "criteria_type": "server_first_coins",
+        "criteria_value": 50,
+    },
+    {
+        "id": "server_first_block",
+        "title": "Server first: Pierwszy Blok!",
+        "description": "Historyczne wybicie pierwszego bloku po Genesis na sieci Chłopchain.",
+        "category": "server_first",
+        "rarity": "realm_first",
+        "points": 100,
+        "icon": "🧱",
+        "is_server_first": 1,
+        "criteria_type": "server_first_block",
+        "criteria_value": 1,
+    },
+    {
+        "id": "billboard_hot_200",
+        "title": "Billboard hot 200",
+        "description": "Pozostań na pozycji #1 w Rankingu Pomocnych Chłopów przez 7 dni (lub cykli sieci).",
+        "category": "ranking",
+        "rarity": "legendary",
+        "points": 150,
+        "icon": "📻",
+        "is_server_first": 0,
+        "criteria_type": "billboard_hot_200",
+        "criteria_value": 7,
+    },
+    {
+        "id": "rank_top_3",
+        "title": "Na podium chwały",
+        "description": "Zajmij miejsce w pierwszej trójce Rankingu Pomocnych Chłopów.",
+        "category": "ranking",
+        "rarity": "rare",
+        "points": 30,
+        "icon": "🥉",
+        "is_server_first": 0,
+        "criteria_type": "rank_top_3",
+        "criteria_value": 3,
+    },
+    {
+        "id": "first_block",
+        "title": "Mój pierwszy blok",
+        "description": "Potwierdź wzajemną pomoc z innym chłopem i weź udział w wybiciu bloku transakcji.",
+        "category": "economy",
+        "rarity": "common",
+        "points": 15,
+        "icon": "⛏️",
+        "is_server_first": 0,
+        "criteria_type": "blocks_ge",
+        "criteria_value": 1,
+    },
+    {
+        "id": "multi_skilled",
+        "title": "Złota rączka",
+        "description": "Zadeklaruj co najmniej 3 umiejętności, w których potrafisz pomóc innym.",
+        "category": "social",
+        "rarity": "rare",
+        "points": 20,
+        "icon": "🛠️",
+        "is_server_first": 0,
+        "criteria_type": "skills_ge",
+        "criteria_value": 3,
+    },
+    {
+        "id": "profile_complete",
+        "title": "Chłop z krwi i kości",
+        "description": "Wypełnij kompletny profil: imię, miasto, bio oraz umiejętności.",
+        "category": "social",
+        "rarity": "common",
+        "points": 10,
+        "icon": "👤",
+        "is_server_first": 0,
+        "criteria_type": "profile_complete",
+        "criteria_value": 1,
+    },
+    {
+        "id": "chat_talker",
+        "title": "Gaduła na radiu",
+        "description": "Napisz co najmniej 5 wiadomości na Chłopczacie.",
+        "category": "social",
+        "rarity": "common",
+        "points": 10,
+        "icon": "💬",
+        "is_server_first": 0,
+        "criteria_type": "chat_messages_ge",
+        "criteria_value": 5,
+    },
+    {
+        "id": "direct_messenger",
+        "title": "Szybki priv",
+        "description": "Napisz pierwszą prywatną wiadomość (DM) do innego chłopa.",
+        "category": "social",
+        "rarity": "common",
+        "points": 10,
+        "icon": "✉️",
+        "is_server_first": 0,
+        "criteria_type": "dm_messages_ge",
+        "criteria_value": 1,
+    },
+]
+
+
 def init_db(seed: bool = True) -> None:
     with get_db() as conn:
         conn.executescript(
@@ -352,10 +536,13 @@ def init_db(seed: bool = True) -> None:
             conn.execute("ALTER TABLE profiles ADD COLUMN chlopocoin_balance INTEGER NOT NULL DEFAULT 0;")
         if "role" not in cols:
             conn.execute("ALTER TABLE profiles ADD COLUMN role TEXT NOT NULL DEFAULT 'user';")
+        if "achievement_points" not in cols:
+            conn.execute("ALTER TABLE profiles ADD COLUMN achievement_points INTEGER NOT NULL DEFAULT 0;")
         conn.execute("UPDATE profiles SET role = 'admin' WHERE LOWER(TRIM(email)) = ?;", (ADMIN_EMAIL,))
         conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_role ON profiles(role);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_share_location ON profiles(share_location);")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_achievement_points ON profiles(achievement_points);")
 
         conn.executescript(
             """
@@ -419,6 +606,38 @@ def init_db(seed: bool = True) -> None:
             CREATE INDEX IF NOT EXISTS idx_direct_chat_pair ON direct_chat_messages(sender_id, receiver_id);
             CREATE INDEX IF NOT EXISTS idx_direct_chat_receiver_unread ON direct_chat_messages(receiver_id, is_read);
             CREATE INDEX IF NOT EXISTS idx_direct_chat_created ON direct_chat_messages(created_at);
+
+            CREATE TABLE IF NOT EXISTS achievements_definitions (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                category TEXT NOT NULL,
+                rarity TEXT NOT NULL,
+                points INTEGER NOT NULL DEFAULT 10,
+                icon TEXT NOT NULL DEFAULT '🏆',
+                is_server_first INTEGER NOT NULL DEFAULT 0,
+                first_achieved_by_id INTEGER REFERENCES profiles(id) ON DELETE SET NULL,
+                first_achieved_by_name TEXT NOT NULL DEFAULT '',
+                first_achieved_at TEXT NOT NULL DEFAULT '',
+                criteria_type TEXT NOT NULL,
+                criteria_value INTEGER NOT NULL DEFAULT 1
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_achievements_def_cat ON achievements_definitions(category);
+            CREATE INDEX IF NOT EXISTS idx_achievements_def_sf ON achievements_definitions(is_server_first);
+
+            CREATE TABLE IF NOT EXISTS profile_achievements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                achievement_id TEXT NOT NULL REFERENCES achievements_definitions(id) ON DELETE CASCADE,
+                achieved_at TEXT NOT NULL,
+                notified INTEGER NOT NULL DEFAULT 0,
+                UNIQUE(profile_id, achievement_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_profile_achievements_pid ON profile_achievements(profile_id);
+            CREATE INDEX IF NOT EXISTS idx_profile_achievements_aid ON profile_achievements(achievement_id);
+            CREATE INDEX IF NOT EXISTS idx_profile_achievements_notified ON profile_achievements(profile_id, notified);
             """
         )
 
@@ -614,6 +833,10 @@ def init_db(seed: bool = True) -> None:
                             (seed_profs[5]["id"], seed_profs[0]["id"], "2026-11-05T18:00:00+00:00"),
                         )
 
+        init_achievements(conn)
+        if seed:
+            evaluate_all_achievements(conn)
+
         invalidate_profiles_cache()
 
 
@@ -764,6 +987,7 @@ def _hydrate_profiles(conn: sqlite3.Connection, profile_rows: List[sqlite3.Row])
                 "lng": lng,
                 "share_location": bool(r["share_location"]) if "share_location" in row_keys and r["share_location"] else False,
                 "chlopocoin_balance": int(r["chlopocoin_balance"]) if "chlopocoin_balance" in row_keys and r["chlopocoin_balance"] is not None else 0,
+                "achievement_points": int(r["achievement_points"]) if "achievement_points" in row_keys and r["achievement_points"] is not None else 0,
                 "created_at": r["created_at"],
                 "updated_at": r["updated_at"],
             }
@@ -923,6 +1147,10 @@ def create_profile(data: Dict[str, Any]) -> Dict[str, Any]:
         raise ProfileAuthError("Hasło jest wymagane.")
     with get_db() as conn:
         profile_id = _insert_profile_in_tx(conn, data)
+        try:
+            evaluate_achievements_for_profile(conn, profile_id)
+        except Exception:
+            pass
         row = conn.execute("SELECT * FROM profiles WHERE id = ?", (profile_id,)).fetchone()
         hydrated = _hydrate_profiles(conn, [row])[0]
     invalidate_profiles_cache()
@@ -1005,6 +1233,10 @@ def update_profile(profile_id: int, data: Dict[str, Any]) -> Optional[Dict[str, 
             clean_skills(data.get("can_help", [])),
             clean_skills(data.get("need_help", [])),
         )
+        try:
+            evaluate_achievements_for_profile(conn, profile_id)
+        except Exception:
+            pass
         row = conn.execute("SELECT * FROM profiles WHERE id = ?", (profile_id,)).fetchone()
         hydrated = _hydrate_profiles(conn, [row])[0]
     invalidate_profiles_cache()
@@ -1222,6 +1454,9 @@ def confirm_chlop_help(
                     "UPDATE profiles SET chlopocoin_balance = chlopocoin_balance + 1 WHERE id IN (?, ?)",
                     (p1, p2),
                 )
+                evaluate_achievements_for_profile(conn, p1)
+                evaluate_achievements_for_profile(conn, p2)
+                update_billboard_leader_state(conn)
 
             invalidate_profiles_cache()
             balance_row = conn.execute(
@@ -1616,6 +1851,11 @@ def create_chat_message(
             (profile_id, effective_author, cleaned_msg, now_str),
         )
         msg_id = cur.lastrowid
+        if profile_id:
+            try:
+                evaluate_achievements_for_profile(conn, profile_id)
+            except Exception:
+                pass
         return {
             "id": msg_id,
             "profile_id": profile_id,
@@ -1698,6 +1938,11 @@ def create_direct_message(
             (sender_id, receiver_id, cleaned_msg, now_str),
         )
         msg_id = cur.lastrowid
+        if sender_id:
+            try:
+                evaluate_achievements_for_profile(conn, sender_id)
+            except Exception:
+                pass
         return {
             "id": msg_id,
             "sender_id": sender_id,
@@ -1996,3 +2241,656 @@ def generate_random_synthetic_profile() -> Dict[str, Any]:
         "role": "user",
     }
     return create_profile(payload)
+
+
+# ============================================================================
+# GAMIFIKACJA & SYSTEM OSIĄGNIĘĆ CHŁOPCHAINA (W STYLU WORLD OF WARCRAFT)
+# ============================================================================
+
+def init_achievements(conn: sqlite3.Connection) -> None:
+    """Inicjalizuje definicje osiągnięć w bazie danych i aktualizuje opisy/punkty."""
+    for item in ACHIEVEMENTS_SEED:
+        existing = conn.execute(
+            "SELECT id FROM achievements_definitions WHERE id = ?", (item["id"],)
+        ).fetchone()
+        if not existing:
+            conn.execute(
+                """
+                INSERT INTO achievements_definitions (
+                    id, title, description, category, rarity, points, icon,
+                    is_server_first, criteria_type, criteria_value
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    item["id"],
+                    item["title"],
+                    item["description"],
+                    item["category"],
+                    item["rarity"],
+                    item["points"],
+                    item["icon"],
+                    item["is_server_first"],
+                    item["criteria_type"],
+                    item["criteria_value"],
+                ),
+            )
+        else:
+            conn.execute(
+                """
+                UPDATE achievements_definitions
+                SET title = ?, description = ?, category = ?, rarity = ?,
+                    points = ?, icon = ?, is_server_first = ?,
+                    criteria_type = ?, criteria_value = ?
+                WHERE id = ?
+                """,
+                (
+                    item["title"],
+                    item["description"],
+                    item["category"],
+                    item["rarity"],
+                    item["points"],
+                    item["icon"],
+                    item["is_server_first"],
+                    item["criteria_type"],
+                    item["criteria_value"],
+                    item["id"],
+                ),
+            )
+
+
+def update_billboard_leader_state(
+    conn: sqlite3.Connection,
+    advance_day: bool = False,
+    force_days: Optional[int] = None,
+) -> None:
+    """Aktualizuje stan lidera Billboard Hot 200 (kto jest #1 w rankingu i ile dni utrzymuje szczyt)."""
+    top_row = conn.execute(
+        """
+        SELECT id, name, chlopocoin_balance
+        FROM profiles
+        WHERE chlopocoin_balance > 0
+        ORDER BY chlopocoin_balance DESC, id ASC
+        LIMIT 1
+        """
+    ).fetchone()
+    if not top_row:
+        return
+
+    top_id = top_row["id"]
+    current_lead_id_row = conn.execute(
+        "SELECT value FROM economy_simulator_state WHERE key = 'billboard_leader_id'"
+    ).fetchone()
+    current_days_row = conn.execute(
+        "SELECT value FROM economy_simulator_state WHERE key = 'billboard_leader_days'"
+    ).fetchone()
+
+    cur_id = int(current_lead_id_row["value"]) if current_lead_id_row else None
+    cur_days = int(current_days_row["value"]) if current_days_row else 0
+
+    if force_days is not None:
+        cur_id = top_id
+        cur_days = force_days
+    elif cur_id == top_id:
+        if advance_day:
+            cur_days += 1
+    else:
+        cur_id = top_id
+        cur_days = 1
+
+    conn.execute(
+        "INSERT OR REPLACE INTO economy_simulator_state (key, value) VALUES ('billboard_leader_id', ?)",
+        (str(cur_id),),
+    )
+    conn.execute(
+        "INSERT OR REPLACE INTO economy_simulator_state (key, value) VALUES ('billboard_leader_days', ?)",
+        (str(cur_days),),
+    )
+    conn.execute(
+        "INSERT OR REPLACE INTO economy_simulator_state (key, value) VALUES ('billboard_leader_name', ?)",
+        (top_row["name"],),
+    )
+
+    evaluate_achievements_for_profile(conn, top_id)
+
+
+def evaluate_achievements_for_profile(
+    conn: sqlite3.Connection, profile_id: int
+) -> List[Dict[str, Any]]:
+    """
+    Ocenia i przyznaje osiągnięcia dla danego chłopa.
+    Zwraca listę nowo odblokowanych osiągnięć w tej transakcji.
+    """
+    row = conn.execute("SELECT * FROM profiles WHERE id = ?", (profile_id,)).fetchone()
+    if not row:
+        return []
+
+    profile = dict(row)
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    unlocked_rows = conn.execute(
+        "SELECT achievement_id FROM profile_achievements WHERE profile_id = ?",
+        (profile_id,),
+    ).fetchall()
+    unlocked_ids = {r["achievement_id"] for r in unlocked_rows}
+
+    defs = conn.execute("SELECT * FROM achievements_definitions").fetchall()
+    newly_unlocked = []
+
+    balance = profile.get("chlopocoin_balance", 0) or 0
+    blocks_count = conn.execute(
+        "SELECT COUNT(*) AS c FROM chlopocoin_blocks WHERE profile_a_id = ? OR profile_b_id = ?",
+        (profile_id, profile_id),
+    ).fetchone()["c"]
+    can_help_count = conn.execute(
+        "SELECT COUNT(*) AS c FROM profile_skills WHERE profile_id = ? AND kind = 'can_help'",
+        (profile_id,),
+    ).fetchone()["c"]
+    need_help_count = conn.execute(
+        "SELECT COUNT(*) AS c FROM profile_skills WHERE profile_id = ? AND kind = 'need_help'",
+        (profile_id,),
+    ).fetchone()["c"]
+    chat_count = conn.execute(
+        "SELECT COUNT(*) AS c FROM global_chat_messages WHERE profile_id = ?",
+        (profile_id,),
+    ).fetchone()["c"]
+    dm_count = conn.execute(
+        "SELECT COUNT(*) AS c FROM direct_chat_messages WHERE sender_id = ?",
+        (profile_id,),
+    ).fetchone()["c"]
+
+    for d in defs:
+        ach_id = d["id"]
+        if ach_id in unlocked_ids:
+            continue
+
+        c_type = d["criteria_type"]
+        c_val = d["criteria_value"]
+        qualifies = False
+
+        if c_type == "coins_ge":
+            qualifies = balance >= c_val
+
+        elif c_type == "server_first_coins":
+            if balance >= c_val:
+                if not d["first_achieved_by_id"]:
+                    upd = conn.execute(
+                        """
+                        UPDATE achievements_definitions
+                        SET first_achieved_by_id = ?, first_achieved_by_name = ?, first_achieved_at = ?
+                        WHERE id = ? AND first_achieved_by_id IS NULL
+                        """,
+                        (profile_id, profile["name"], now_iso, ach_id),
+                    ).rowcount
+                    qualifies = upd > 0
+                elif d["first_achieved_by_id"] == profile_id:
+                    qualifies = True
+
+        elif c_type == "server_first_block":
+            if blocks_count >= 1:
+                first_block = conn.execute(
+                    "SELECT profile_a_id, profile_b_id, created_at FROM chlopocoin_blocks ORDER BY block_index ASC, id ASC LIMIT 1"
+                ).fetchone()
+                if first_block and (
+                    profile_id
+                    in (first_block["profile_a_id"], first_block["profile_b_id"])
+                ):
+                    if not d["first_achieved_by_id"]:
+                        upd = conn.execute(
+                            """
+                            UPDATE achievements_definitions
+                            SET first_achieved_by_id = ?, first_achieved_by_name = ?, first_achieved_at = ?
+                            WHERE id = ? AND first_achieved_by_id IS NULL
+                            """,
+                            (
+                                profile_id,
+                                profile["name"],
+                                first_block["created_at"] or now_iso,
+                                ach_id,
+                            ),
+                        ).rowcount
+                        qualifies = upd > 0
+                    elif d["first_achieved_by_id"] == profile_id:
+                        qualifies = True
+
+        elif c_type == "billboard_hot_200":
+            lead_row = conn.execute(
+                "SELECT value FROM economy_simulator_state WHERE key = 'billboard_leader_id'"
+            ).fetchone()
+            days_row = conn.execute(
+                "SELECT value FROM economy_simulator_state WHERE key = 'billboard_leader_days'"
+            ).fetchone()
+            if lead_row and days_row:
+                try:
+                    if int(lead_row["value"]) == profile_id and int(days_row["value"]) >= c_val:
+                        qualifies = True
+                except (ValueError, TypeError):
+                    pass
+
+        elif c_type == "rank_top_3":
+            if balance > 0:
+                top_3 = conn.execute(
+                    "SELECT id FROM profiles WHERE chlopocoin_balance > 0 ORDER BY chlopocoin_balance DESC, id ASC LIMIT 3"
+                ).fetchall()
+                if any(r["id"] == profile_id for r in top_3):
+                    qualifies = True
+
+        elif c_type == "blocks_ge":
+            qualifies = blocks_count >= c_val
+
+        elif c_type == "skills_ge":
+            qualifies = can_help_count >= c_val
+
+        elif c_type == "profile_complete":
+            name_ok = bool(profile.get("name", "").strip())
+            email_ok = bool(profile.get("email", "").strip())
+            loc_ok = bool(profile.get("location_name", "").strip())
+            bio_ok = bool(profile.get("bio", "").strip())
+            qualifies = (
+                name_ok
+                and email_ok
+                and loc_ok
+                and bio_ok
+                and can_help_count >= 1
+                and need_help_count >= 1
+            )
+
+        elif c_type == "chat_messages_ge":
+            qualifies = chat_count >= c_val
+
+        elif c_type == "dm_messages_ge":
+            qualifies = dm_count >= c_val
+
+        if qualifies:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO profile_achievements (profile_id, achievement_id, achieved_at, notified)
+                VALUES (?, ?, ?, 0)
+                """,
+                (profile_id, ach_id, now_iso),
+            )
+            unlocked_ids.add(ach_id)
+            newly_unlocked.append(
+                {
+                    "id": d["id"],
+                    "title": d["title"],
+                    "description": d["description"],
+                    "category": d["category"],
+                    "rarity": d["rarity"],
+                    "points": d["points"],
+                    "icon": d["icon"],
+                    "is_server_first": bool(d["is_server_first"]),
+                    "achieved_at": now_iso,
+                }
+            )
+
+    conn.execute(
+        """
+        UPDATE profiles
+        SET achievement_points = (
+            SELECT COALESCE(SUM(ad.points), 0)
+            FROM profile_achievements pa
+            JOIN achievements_definitions ad ON pa.achievement_id = ad.id
+            WHERE pa.profile_id = ?
+        )
+        WHERE id = ?
+        """,
+        (profile_id, profile_id),
+    )
+
+    return newly_unlocked
+
+
+def evaluate_all_achievements(conn: sqlite3.Connection) -> int:
+    """Ocenia i przyznaje osiągnięcia dla wszystkich aktywnych profili na sieci."""
+    rows = conn.execute(
+        """
+        SELECT DISTINCT id FROM profiles
+        WHERE chlopocoin_balance > 0
+           OR id IN (SELECT profile_a_id FROM chlopocoin_blocks UNION SELECT profile_b_id FROM chlopocoin_blocks)
+           OR id IN (SELECT profile_id FROM global_chat_messages WHERE profile_id IS NOT NULL)
+           OR id IN (SELECT sender_id FROM direct_chat_messages)
+        """
+    ).fetchall()
+    cnt = 0
+    for r in rows:
+        evaluate_achievements_for_profile(conn, r["id"])
+        cnt += 1
+    update_billboard_leader_state(conn)
+    return cnt
+
+
+def get_profile_achievements(profile_id: int) -> Dict[str, Any]:
+    """Zwraca listę osiągnięć dla profilu (odblokowane oraz zablokowane z postępem)."""
+    with get_db() as conn:
+        evaluate_achievements_for_profile(conn, profile_id)
+
+        profile_row = conn.execute(
+            "SELECT id, name, chlopocoin_balance, achievement_points FROM profiles WHERE id = ?",
+            (profile_id,),
+        ).fetchone()
+        if not profile_row:
+            raise ProfileNotFoundError(f"Profil #{profile_id} nie istnieje.")
+
+        profile = dict(profile_row)
+        defs = conn.execute(
+            "SELECT * FROM achievements_definitions ORDER BY points ASC, id ASC"
+        ).fetchall()
+        pa_rows = conn.execute(
+            """
+            SELECT pa.achievement_id, pa.achieved_at
+            FROM profile_achievements pa
+            WHERE pa.profile_id = ?
+            """,
+            (profile_id,),
+        ).fetchall()
+        unlocked_map = {r["achievement_id"]: r["achieved_at"] for r in pa_rows}
+
+        balance = profile.get("chlopocoin_balance", 0) or 0
+        blocks_count = conn.execute(
+            "SELECT COUNT(*) AS c FROM chlopocoin_blocks WHERE profile_a_id = ? OR profile_b_id = ?",
+            (profile_id, profile_id),
+        ).fetchone()["c"]
+        can_help_count = conn.execute(
+            "SELECT COUNT(*) AS c FROM profile_skills WHERE profile_id = ? AND kind = 'can_help'",
+            (profile_id,),
+        ).fetchone()["c"]
+        need_help_count = conn.execute(
+            "SELECT COUNT(*) AS c FROM profile_skills WHERE profile_id = ? AND kind = 'need_help'",
+            (profile_id,),
+        ).fetchone()["c"]
+        chat_count = conn.execute(
+            "SELECT COUNT(*) AS c FROM global_chat_messages WHERE profile_id = ?",
+            (profile_id,),
+        ).fetchone()["c"]
+        dm_count = conn.execute(
+            "SELECT COUNT(*) AS c FROM direct_chat_messages WHERE sender_id = ?",
+            (profile_id,),
+        ).fetchone()["c"]
+
+        lead_days_row = conn.execute(
+            "SELECT value FROM economy_simulator_state WHERE key = 'billboard_leader_days'"
+        ).fetchone()
+        lead_id_row = conn.execute(
+            "SELECT value FROM economy_simulator_state WHERE key = 'billboard_leader_id'"
+        ).fetchone()
+        is_current_leader = bool(lead_id_row and lead_id_row["value"] == str(profile_id))
+        leader_days = (
+            int(lead_days_row["value"]) if (lead_days_row and is_current_leader) else 0
+        )
+
+        unlocked_list = []
+        locked_list = []
+
+        for d in defs:
+            ach_id = d["id"]
+            c_type = d["criteria_type"]
+            c_val = d["criteria_value"]
+
+            item = {
+                "id": ach_id,
+                "title": d["title"],
+                "description": d["description"],
+                "category": d["category"],
+                "rarity": d["rarity"],
+                "points": d["points"],
+                "icon": d["icon"],
+                "is_server_first": bool(d["is_server_first"]),
+                "first_achieved_by_id": d["first_achieved_by_id"],
+                "first_achieved_by_name": d["first_achieved_by_name"],
+                "first_achieved_at": d["first_achieved_at"],
+            }
+
+            if ach_id in unlocked_map:
+                item["unlocked"] = True
+                item["achieved_at"] = unlocked_map[ach_id]
+                unlocked_list.append(item)
+            else:
+                item["unlocked"] = False
+                curr_val = 0
+                if c_type in ("coins_ge", "server_first_coins"):
+                    curr_val = min(balance, c_val)
+                elif c_type in ("blocks_ge", "server_first_block"):
+                    curr_val = min(blocks_count, c_val)
+                elif c_type == "skills_ge":
+                    curr_val = min(can_help_count, c_val)
+                elif c_type == "chat_messages_ge":
+                    curr_val = min(chat_count, c_val)
+                elif c_type == "dm_messages_ge":
+                    curr_val = min(dm_count, c_val)
+                elif c_type == "billboard_hot_200":
+                    curr_val = min(leader_days, c_val)
+                elif c_type == "profile_complete":
+                    curr_val = (1 if can_help_count else 0) + (1 if need_help_count else 0)
+
+                item["current_val"] = curr_val
+                item["target_val"] = c_val
+                item["progress_pct"] = min(
+                    100.0, round((curr_val / max(1, c_val)) * 100, 1)
+                )
+                item["is_already_claimed"] = bool(
+                    d["is_server_first"]
+                    and d["first_achieved_by_id"]
+                    and d["first_achieved_by_id"] != profile_id
+                )
+                locked_list.append(item)
+
+        total_pts = sum(u["points"] for u in unlocked_list)
+        return {
+            "profile_id": profile_id,
+            "profile_name": profile["name"],
+            "total_points": total_pts,
+            "unlocked_count": len(unlocked_list),
+            "locked_count": len(locked_list),
+            "total_count": len(defs),
+            "progress_pct": min(
+                100.0, round((len(unlocked_list) / max(1, len(defs))) * 100, 1)
+            ),
+            "unlocked": unlocked_list,
+            "locked": locked_list,
+        }
+
+
+def get_global_achievements_feed() -> Dict[str, Any]:
+    """Zwraca globalne podsumowanie osiągnięć (Hala Chwały, Server Firsts, Ranking, Feed)."""
+    with get_db() as conn:
+        total_defs = conn.execute(
+            "SELECT COUNT(*) AS c FROM achievements_definitions"
+        ).fetchone()["c"]
+        total_unlocked_instances = conn.execute(
+            "SELECT COUNT(*) AS c FROM profile_achievements"
+        ).fetchone()["c"]
+        pts_row = conn.execute(
+            """
+            SELECT COALESCE(SUM(ad.points), 0) AS pts
+            FROM profile_achievements pa
+            JOIN achievements_definitions ad ON pa.achievement_id = ad.id
+            """
+        ).fetchone()
+        total_pts = pts_row["pts"] if pts_row else 0
+        total_peasants_with_ach = conn.execute(
+            "SELECT COUNT(DISTINCT profile_id) AS c FROM profile_achievements"
+        ).fetchone()["c"]
+        total_profiles = max(
+            1, conn.execute("SELECT COUNT(*) AS c FROM profiles").fetchone()["c"]
+        )
+
+        sf_rows = conn.execute(
+            """
+            SELECT *
+            FROM achievements_definitions
+            WHERE is_server_first = 1
+            ORDER BY points ASC, id ASC
+            """
+        ).fetchall()
+        server_firsts = [
+            {
+                "id": r["id"],
+                "title": r["title"],
+                "description": r["description"],
+                "points": r["points"],
+                "icon": r["icon"],
+                "rarity": r["rarity"],
+                "is_claimed": bool(r["first_achieved_by_id"]),
+                "first_achieved_by_id": r["first_achieved_by_id"],
+                "first_achieved_by_name": r["first_achieved_by_name"],
+                "first_achieved_at": r["first_achieved_at"],
+            }
+            for r in sf_rows
+        ]
+
+        lead_id = conn.execute(
+            "SELECT value FROM economy_simulator_state WHERE key = 'billboard_leader_id'"
+        ).fetchone()
+        lead_days = conn.execute(
+            "SELECT value FROM economy_simulator_state WHERE key = 'billboard_leader_days'"
+        ).fetchone()
+        lead_name = conn.execute(
+            "SELECT value FROM economy_simulator_state WHERE key = 'billboard_leader_name'"
+        ).fetchone()
+
+        billboard_info = {
+            "leader_id": int(lead_id["value"]) if lead_id else None,
+            "leader_name": lead_name["value"] if lead_name else "Brak lidera",
+            "days_held": int(lead_days["value"]) if lead_days else 0,
+            "target_days": 7,
+        }
+
+        all_defs = conn.execute(
+            "SELECT * FROM achievements_definitions ORDER BY points ASC, id ASC"
+        ).fetchall()
+        counts_map = {
+            r["achievement_id"]: r["c"]
+            for r in conn.execute(
+                "SELECT achievement_id, COUNT(*) AS c FROM profile_achievements GROUP BY achievement_id"
+            ).fetchall()
+        }
+
+        achievements_list = []
+        for d in all_defs:
+            unlocked_cnt = counts_map.get(d["id"], 0)
+            achievements_list.append(
+                {
+                    "id": d["id"],
+                    "title": d["title"],
+                    "description": d["description"],
+                    "category": d["category"],
+                    "rarity": d["rarity"],
+                    "points": d["points"],
+                    "icon": d["icon"],
+                    "is_server_first": bool(d["is_server_first"]),
+                    "first_achieved_by_id": d["first_achieved_by_id"],
+                    "first_achieved_by_name": d["first_achieved_by_name"],
+                    "first_achieved_at": d["first_achieved_at"],
+                    "unlocked_count": unlocked_cnt,
+                    "unlocked_pct": min(
+                        100.0, round((unlocked_cnt / total_profiles) * 100, 1)
+                    ),
+                }
+            )
+
+        leaderboard_rows = conn.execute(
+            """
+            SELECT p.id, p.name, p.location_name, p.chlopocoin_balance, p.achievement_points,
+                   (SELECT COUNT(*) FROM profile_achievements pa WHERE pa.profile_id = p.id) AS achievements_count
+            FROM profiles p
+            WHERE p.achievement_points > 0
+            ORDER BY p.achievement_points DESC, p.chlopocoin_balance DESC, p.id ASC
+            LIMIT 25
+            """
+        ).fetchall()
+        leaderboard = [
+            {
+                "id": r["id"],
+                "name": r["name"],
+                "location_name": r["location_name"] or "Polska",
+                "chlopocoin_balance": r["chlopocoin_balance"],
+                "achievement_points": r["achievement_points"],
+                "achievements_count": r["achievements_count"],
+            }
+            for r in leaderboard_rows
+        ]
+
+        recent_rows = conn.execute(
+            """
+            SELECT pa.achieved_at, p.id AS profile_id, p.name AS profile_name,
+                   ad.id AS achievement_id, ad.title, ad.points, ad.icon, ad.rarity
+            FROM profile_achievements pa
+            JOIN profiles p ON pa.profile_id = p.id
+            JOIN achievements_definitions ad ON pa.achievement_id = ad.id
+            ORDER BY pa.id DESC
+            LIMIT 15
+            """
+        ).fetchall()
+        recent_feed = [
+            {
+                "profile_id": r["profile_id"],
+                "profile_name": r["profile_name"],
+                "achievement_id": r["achievement_id"],
+                "title": r["title"],
+                "points": r["points"],
+                "icon": r["icon"],
+                "rarity": r["rarity"],
+                "achieved_at": r["achieved_at"],
+            }
+            for r in recent_rows
+        ]
+
+        return {
+            "stats": {
+                "total_definitions": total_defs,
+                "total_unlocked_instances": total_unlocked_instances,
+                "total_points_distributed": total_pts,
+                "server_firsts_count": len(server_firsts),
+                "server_firsts_claimed": sum(
+                    1 for s in server_firsts if s["is_claimed"]
+                ),
+                "peasants_with_achievements": total_peasants_with_ach,
+            },
+            "server_firsts": server_firsts,
+            "billboard": billboard_info,
+            "achievements": achievements_list,
+            "leaderboard": leaderboard,
+            "recent_feed": recent_feed,
+        }
+
+
+def pop_achievement_notifications(profile_id: int) -> List[Dict[str, Any]]:
+    """Pobiera nieprzeczytane powiadomienia o osiągnięciach i oznacza je jako przeczytane."""
+    with get_db() as conn:
+        evaluate_achievements_for_profile(conn, profile_id)
+
+        rows = conn.execute(
+            """
+            SELECT pa.id AS link_id, pa.achieved_at, ad.*
+            FROM profile_achievements pa
+            JOIN achievements_definitions ad ON pa.achievement_id = ad.id
+            WHERE pa.profile_id = ? AND pa.notified = 0
+            ORDER BY pa.id ASC
+            """,
+            (profile_id,),
+        ).fetchall()
+
+        if not rows:
+            return []
+
+        unnotified_ids = [r["link_id"] for r in rows]
+        ph = ",".join("?" for _ in unnotified_ids)
+        conn.execute(
+            f"UPDATE profile_achievements SET notified = 1 WHERE id IN ({ph})",
+            unnotified_ids,
+        )
+
+        return [
+            {
+                "id": r["id"],
+                "title": r["title"],
+                "description": r["description"],
+                "category": r["category"],
+                "rarity": r["rarity"],
+                "points": r["points"],
+                "icon": r["icon"],
+                "is_server_first": bool(r["is_server_first"]),
+                "achieved_at": r["achieved_at"],
+            }
+            for r in rows
+        ]
