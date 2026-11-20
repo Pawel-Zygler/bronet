@@ -107,7 +107,13 @@ export function ProfileEditorView({
     onStatusChange(message, isError, mobileShort);
   };
 
+  // Zakładka wraca do "Umiejętności" tylko przy zmianie konta, a nie przy każdym
+  // odświeżeniu obiektu myProfile (np. po pobraniu świeżych danych w tle).
+  const lastSyncedProfileIdRef = useRef(myProfile ? myProfile.id : null);
+
   useEffect(() => {
+    const profileChanged = (myProfile ? myProfile.id : null) !== lastSyncedProfileIdRef.current;
+    lastSyncedProfileIdRef.current = myProfile ? myProfile.id : null;
     if (myProfile) {
       setEditingId(myProfile.id);
       setHasPassword(Boolean(myProfile.has_password));
@@ -125,7 +131,7 @@ export function ProfileEditorView({
       setNeedHelpList(myProfile.need_help || []);
       setCanHelpInput("");
       setNeedHelpInput("");
-      setActiveTab("skills");
+      if (profileChanged) setActiveTab("skills");
       setInvalidField("");
       setConfirmingDelete(false);
       setDeletePassword("");

@@ -23,3 +23,5 @@ playwright/.cache/
 !.env.example
 
 
+.coverage
+htmlcov/

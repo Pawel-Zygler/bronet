@@ -1,4 +1,5 @@
 const { test, expect } = require("@playwright/test");
+const { isRemoteTarget } = require("./support/env");
 
 test.describe("Zakładka Chłopchain (/chlopchain) & Ekonomia", () => {
   test(
@@ -56,8 +57,12 @@ test.describe("Zakładka Chłopchain (/chlopchain) & Ekonomia", () => {
 
   test(
     "smoke: sidebar z suwakami kontroli ekonomii chłopchaina (zmiana TPS, tempa, cel puli, przyciski akcji)",
-    { tag: ["@smoke", "@regression"] },
+    { tag: ["@smoke", "@regression", "@local-only"] },
     async ({ page, request }) => {
+      // Test zakłada konto administratora i zmienia globalną konfigurację silnika ekonomii.
+      // Nie może działać na produkcji (patrz e2e/support/env.js).
+      test.skip(isRemoteTarget, "Test admina działa tylko na lokalnej bazie");
+
       // 1. Zwykły gość / użytkownik bez uprawnień -> brak sidebara ekonomii
       await page.goto("/chlopchain");
       await expect(page.locator("#global-stats-container")).toBeVisible();
@@ -66,7 +71,7 @@ test.describe("Zakładka Chłopchain (/chlopchain) & Ekonomia", () => {
 
       // 2. Utworzenie konta administratora (pawel.zygler@gmail.com) i logowanie
       const adminEmail = "pawel.zygler@gmail.com";
-      const adminPw = "admin123";
+      const adminPw = process.env.E2E_ADMIN_PASSWORD || "admin123";
       await request.post("/api/profiles", {
         data: {
           name: "Paweł Admin",

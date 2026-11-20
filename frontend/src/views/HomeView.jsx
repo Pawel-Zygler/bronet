@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ProfileCard } from "../components/ProfileCard";
 import { normalizeText } from "../utils/text";
-
-const PAGE_SIZE = 15;
+import { paginate } from "../utils/pagination";
 
 export function HomeView({
   searchQuery,
@@ -68,11 +67,13 @@ export function HomeView({
     trimmedQuery || isCompactView || (profiles && profiles.length > 0)
   );
 
-  const totalPages = Math.max(1, Math.ceil((profiles || []).length / PAGE_SIZE));
-  const safePage = Math.min(Math.max(1, currentPage), totalPages);
-  const startIndex = (safePage - 1) * PAGE_SIZE;
-  const endIndex = Math.min(startIndex + PAGE_SIZE, (profiles || []).length);
-  const pagedProfiles = (profiles || []).slice(startIndex, endIndex);
+  const {
+    page: safePage,
+    totalPages,
+    startIndex,
+    endIndex,
+    pageItems: pagedProfiles,
+  } = paginate(profiles, currentPage);
 
   const handlePageChange = (newPage) => {
     setCurrentPage(newPage);
