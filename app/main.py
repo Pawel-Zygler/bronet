@@ -6,6 +6,16 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.economy_engine import economy_simulator
+from app.security import (
+    TOO_MANY_ATTEMPTS,
+    apply_security_headers,
+    chat_messages_per_sender,
+    client_ip,
+    failed_login_per_account,
+    failed_login_per_ip,
+    password_checks_per_profile,
+    registrations_per_ip,
+)
 
 from app.database import (
     ADMIN_EMAIL,
@@ -70,12 +80,17 @@ app = FastAPI(
     title="Bronet API",
     description="Minimalistyczna platforma wymiany umiejętności — jeden chłop pomaga drugiemu.",
     version="2.0.0",
+    # Dokumentacja API tylko na żądanie (np. lokalnie), nie na produkcji.
+    docs_url="/docs" if os.environ.get("BRONET_ENABLE_DOCS") == "1" else None,
+    redoc_url=None,
+    openapi_url="/openapi.json" if os.environ.get("BRONET_ENABLE_DOCS") == "1" else None,
 )
 
 
 @app.middleware("http")
 async def revalidate_static_and_spa(request: Request, call_next):
     response = await call_next(request)
+    apply_security_headers(request, response.headers)
     path = request.url.path
     if path.startswith("/static/assets/"):
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
@@ -135,6 +150,12 @@ def require_owner(path_profile_id: int, session_profile_id: int) -> None:
         raise HTTPException(status_code=403, detail="Możesz zmieniać tylko własny profil.")
 
 
+def _check_password_attempts(profile_id: int) -> None:
+    limited, retry_after = password_checks_per_profile.is_limited(str(profile_id))
+    if limited:
+        raise HTTPException(status_code=429, detail=TOO_MANY_ATTEMPTS, headers={"Retry-After": str(retry_after)})
+
+
 def public_profile(profile: dict, viewer_id: Optional[int]) -> dict:
     """Ukrywa e-mail logowania i dokładną lokalizację przed innymi użytkownikami."""
     if viewer_id and profile.get("id") == viewer_id:
@@ -180,10 +201,20 @@ def api_list_profiles(
 
 @app.post("/api/profiles/login", response_model=ProfileResponse)
 def api_login_profile(payload: LoginPayload, request: Request, response: Response) -> dict:
+    account_key = payload.email.strip().lower()
+    ip_key = client_ip(request)
+    for limiter, key in ((failed_login_per_account, account_key), (failed_login_per_ip, ip_key)):
+        limited, retry_after = limiter.is_limited(key)
+        if limited:
+            raise HTTPException(status_code=429, detail=TOO_MANY_ATTEMPTS, headers={"Retry-After": str(retry_after)})
     try:
         profile = authenticate_profile_by_email(payload.email, payload.password or "")
     except ProfileAuthError as exc:
+        failed_login_per_account.hit(account_key)
+        failed_login_per_ip.hit(ip_key)
         raise HTTPException(status_code=401, detail=str(exc))
+    if profile:
+        failed_login_per_account.reset(account_key)
     if not profile:
         raise HTTPException(status_code=404, detail="Nie znaleziono profilu dla podanego adresu e-mail.")
     start_session(request, response, profile["id"])
@@ -209,6 +240,7 @@ def api_get_my_profile(profile_id: int = Depends(require_profile_id)) -> dict:
 def api_create_profile(payload: ProfilePayload, request: Request, response: Response) -> dict:
     if not payload.name.strip():
         raise HTTPException(status_code=422, detail="Imię nie może być puste.")
+    registrations_per_ip.check_and_hit(client_ip(request), TOO_MANY_ATTEMPTS)
     try:
         created = create_profile(payload.dict())
     except ProfileValidationError as exc:
@@ -237,11 +269,13 @@ def api_update_profile(
     require_owner(profile_id, session_profile_id)
     if not payload.name.strip():
         raise HTTPException(status_code=422, detail="Imię nie może być puste.")
+    _check_password_attempts(profile_id)
     try:
         updated = update_profile(profile_id, payload.dict())
     except ProfileValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     except ProfileAuthError as exc:
+        password_checks_per_profile.hit(str(profile_id))
         raise HTTPException(status_code=401, detail=str(exc))
     if not updated:
         raise HTTPException(status_code=404, detail="Nie znaleziono profilu.")
@@ -261,9 +295,11 @@ def api_delete_profile(
 ) -> dict:
     require_owner(profile_id, session_profile_id)
     effective_password = (payload.password if payload and payload.password else None) or x_profile_password or ""
+    _check_password_attempts(profile_id)
     try:
         deleted = delete_profile(profile_id, password=effective_password)
     except ProfileAuthError as exc:
+        password_checks_per_profile.hit(str(profile_id))
         raise HTTPException(status_code=401, detail=str(exc))
     if not deleted:
         raise HTTPException(status_code=404, detail="Nie znaleziono profilu.")
@@ -394,8 +430,11 @@ def api_list_chat_messages(
 @app.post("/api/chat/messages", response_model=ChatMessageResponse, status_code=201)
 def api_send_chat_message(
     payload: ChatMessagePayload,
+    request: Request,
     session_profile_id: Optional[int] = Depends(optional_profile_id),
 ) -> dict:
+    sender_key = f"profile:{session_profile_id}" if session_profile_id else f"ip:{client_ip(request)}"
+    chat_messages_per_sender.check_and_hit(sender_key, "Za dużo wiadomości naraz. Zwolnij trochę.")
     author_name = payload.author_name or ""
     if not session_profile_id:
         # Niezalogowani mogą pisać, ale nie mogą podszyć się pod zarejestrowanego chłopa.

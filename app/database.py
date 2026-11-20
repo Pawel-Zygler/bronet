@@ -991,6 +991,37 @@ def delete_other_sessions(profile_id: int, keep_token: Optional[str]) -> None:
         )
 
 
+MIN_PASSWORD_LENGTH = 8
+MAX_SKILLS_PER_LIST = 30
+MAX_SKILL_LENGTH = 80
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def validate_new_password(raw_password: str) -> None:
+    if len(raw_password) < MIN_PASSWORD_LENGTH:
+        raise ProfileValidationError(f"Hasło musi mieć co najmniej {MIN_PASSWORD_LENGTH} znaków.")
+
+
+def validate_profile_input(data: Dict[str, Any]) -> None:
+    email = normalize_email(data.get("email"))
+    if email and not EMAIL_RE.match(email):
+        raise ProfileValidationError("Podaj poprawny adres e-mail.")
+    for key, label in (("can_help", "Umiem"), ("need_help", "Potrzebuję")):
+        skills = data.get(key) or []
+        if len(skills) > MAX_SKILLS_PER_LIST:
+            raise ProfileValidationError(f"Lista „{label}” może mieć najwyżej {MAX_SKILLS_PER_LIST} pozycji.")
+        if any(len(str(skill or "")) > MAX_SKILL_LENGTH for skill in skills):
+            raise ProfileValidationError(f"Pojedyncza umiejętność może mieć najwyżej {MAX_SKILL_LENGTH} znaków.")
+    lat, lng = data.get("lat"), data.get("lng")
+    try:
+        if lat is not None and not -90 <= float(lat) <= 90:
+            raise ProfileValidationError("Nieprawidłowa szerokość geograficzna.")
+        if lng is not None and not -180 <= float(lng) <= 180:
+            raise ProfileValidationError("Nieprawidłowa długość geograficzna.")
+    except (TypeError, ValueError):
+        raise ProfileValidationError("Nieprawidłowe współrzędne lokalizacji.")
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -1285,6 +1316,7 @@ def create_profile(data: Dict[str, Any]) -> Dict[str, Any]:
     name = str(data.get("name") or "").strip()
     email = normalize_email(data.get("email"))
     validate_men_only(name, email)
+    validate_profile_input(data)
     if email:
         with get_db() as conn:
             existing_row = conn.execute(
@@ -1298,6 +1330,7 @@ def create_profile(data: Dict[str, Any]) -> Dict[str, Any]:
     raw_password = str(data.get("password") or "")
     if not raw_password:
         raise ProfileAuthError("Hasło jest wymagane.")
+    validate_new_password(raw_password)
     with get_db() as conn:
         profile_id = _insert_profile_in_tx(conn, data)
         try:
@@ -1323,16 +1356,20 @@ def update_profile(profile_id: int, data: Dict[str, Any]) -> Optional[Dict[str, 
         provided_password = str(data.get("password") or "")
         new_password = str(data.get("new_password") or "")
 
+        validate_profile_input(data)
         if existing_hash:
             if not verify_password(provided_password, existing_hash):
                 if not provided_password:
                     raise ProfileAuthError("Podaj hasło profilu, aby zapisać zmiany.")
                 raise ProfileAuthError("Nieprawidłowe hasło — nie można zapisać zmian.")
+            if new_password:
+                validate_new_password(new_password)
             effective_hash = hash_password(new_password) if new_password else existing_hash
         else:
             chosen_pw = new_password or provided_password
             if not chosen_pw:
                 raise ProfileAuthError("Hasło jest wymagane — ustaw hasło, aby zapisać profil.")
+            validate_new_password(chosen_pw)
             effective_hash = hash_password(chosen_pw)
 
         now = _now_iso()

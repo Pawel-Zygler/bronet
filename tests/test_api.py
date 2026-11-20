@@ -37,6 +37,10 @@ class BronetBackendTest(unittest.TestCase):
         if os.path.exists(_tmp.name):
             os.remove(_tmp.name)
         init_db(seed=True)
+        from app.security import ALL_LIMITERS
+
+        for limiter in ALL_LIMITERS:
+            limiter.clear()
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -77,12 +81,12 @@ class BronetBackendTest(unittest.TestCase):
                 }
             )
 
-        # Create profile with a simple password (zero complexity restrictions, e.g. "12")
+        # Create profile with a simple password (only minimum length is required)
         created = create_profile(
             {
                 "name": "Paweł",
                 "email": "pawel@test.pl",
-                "password": "12",
+                "password": "12-haslo",
                 "can_help": ["finanse, sdlc", "python"],
                 "need_help": ["qa", "związki"],
                 "contact": "pawel@test.pl",
@@ -107,10 +111,10 @@ class BronetBackendTest(unittest.TestCase):
         with self.assertRaises(ProfileAuthError):
             authenticate_profile_by_email("pawel@test.pl", "")
         with self.assertRaises(ProfileAuthError):
-            authenticate_profile_by_email("pawel@test.pl", "zle")
+            authenticate_profile_by_email("pawel@test.pl", "zle-haslo")
 
         # Login with correct password succeeds
-        authed = authenticate_profile_by_email("pawel@test.pl", "12")
+        authed = authenticate_profile_by_email("pawel@test.pl", "12-haslo")
         self.assertEqual(authed["id"], created["id"])
 
         # Update without password fails, with password + new_password succeeds
@@ -122,8 +126,8 @@ class BronetBackendTest(unittest.TestCase):
             {
                 "name": "Paweł Z.",
                 "email": "pawel@test.pl",
-                "password": "12",
-                "new_password": "kawa",
+                "password": "12-haslo",
+                "new_password": "kawa-haslo",
                 "can_help": ["architektura"],
                 "need_help": ["figma"],
                 "contact": "nowy@test.pl",
@@ -132,14 +136,14 @@ class BronetBackendTest(unittest.TestCase):
         )
         self.assertEqual(changed_pw["name"], "Paweł Z.")
         self.assertTrue(changed_pw["has_password"])
-        self.assertEqual(authenticate_profile_by_email("pawel@test.pl", "kawa")["id"], created["id"])
+        self.assertEqual(authenticate_profile_by_email("pawel@test.pl", "kawa-haslo")["id"], created["id"])
 
         # Delete requires the updated password
         with self.assertRaises(ProfileAuthError):
             delete_profile(created["id"], password="")
         with self.assertRaises(ProfileAuthError):
-            delete_profile(created["id"], password="12")
-        self.assertTrue(delete_profile(created["id"], password="kawa"))
+            delete_profile(created["id"], password="12-haslo")
+        self.assertTrue(delete_profile(created["id"], password="kawa-haslo"))
         self.assertIsNone(get_profile(created["id"]))
 
         catalog = get_skills_catalog()
@@ -192,7 +196,7 @@ class BronetBackendTest(unittest.TestCase):
                     {
                         "name": bad_name,
                         "email": f"test.{bad_name.split()[0].lower()}@bronet.test",
-                        "password": "123",
+                        "password": "123-haslo",
                         "can_help": ["it"],
                         "need_help": ["mechanik"],
                     }
@@ -210,7 +214,7 @@ class BronetBackendTest(unittest.TestCase):
                     {
                         "name": "Marek",
                         "email": bad_email,
-                        "password": "123",
+                        "password": "123-haslo",
                         "can_help": ["it"],
                         "need_help": ["mechanik"],
                     }
@@ -221,7 +225,7 @@ class BronetBackendTest(unittest.TestCase):
             {
                 "name": "Kuba",
                 "email": "kuba.test@bronet.test",
-                "password": "123",
+                "password": "123-haslo",
                 "can_help": ["it"],
                 "need_help": ["mechanik"],
             }
@@ -235,7 +239,7 @@ class BronetBackendTest(unittest.TestCase):
                 {
                     "name": "Basia",
                     "email": "kuba.test@bronet.test",
-                    "password": "123",
+                    "password": "123-haslo",
                     "can_help": ["it"],
                     "need_help": ["mechanik"],
                 },
@@ -253,7 +257,7 @@ class BronetBackendTest(unittest.TestCase):
             {
                 "name": "Wojtek",
                 "email": "wojtek.chlopocoin@bronet.test",
-                "password": "pw_a",
+                "password": "pw_a-haslo",
                 "can_help": ["hydraulik"],
                 "need_help": ["mechanik"],
             }
@@ -262,7 +266,7 @@ class BronetBackendTest(unittest.TestCase):
             {
                 "name": "Kazik",
                 "email": "kazik.chlopocoin@bronet.test",
-                "password": "pw_b",
+                "password": "pw_b-haslo",
                 "can_help": ["mechanik"],
                 "need_help": ["hydraulik"],
             }
@@ -270,10 +274,10 @@ class BronetBackendTest(unittest.TestCase):
 
         # 1. Próba potwierdzenia samemu sobie jest odrzucana
         with self.assertRaises(ProfileValidationError):
-            confirm_chlop_help(chlop_a["id"], chlop_a["id"], "pw_a")
+            confirm_chlop_help(chlop_a["id"], chlop_a["id"], "pw_a-haslo")
 
         # 2. Wojtek (A) potwierdza Kazika (B) -> 1/2 potwierdzenia
-        res1 = confirm_chlop_help(chlop_a["id"], chlop_b["id"], "pw_a")
+        res1 = confirm_chlop_help(chlop_a["id"], chlop_b["id"], "pw_a-haslo")
         self.assertEqual(res1["status"], "pending")
         self.assertFalse(res1["mutual_settled"])
         self.assertEqual(res1["chlopocoin_balance"], 0)
@@ -290,7 +294,7 @@ class BronetBackendTest(unittest.TestCase):
         self.assertFalse(status_b["mutual_settled"])
 
         # 3. Kazik (B) potwierdza Wojtka (A) -> KONSENSUS 2/2 OSIĄGNIĘTY!
-        res2 = confirm_chlop_help(chlop_b["id"], chlop_a["id"], "pw_b")
+        res2 = confirm_chlop_help(chlop_b["id"], chlop_a["id"], "pw_b-haslo")
         self.assertEqual(res2["status"], "minted")
         self.assertTrue(res2["mutual_settled"])
         self.assertGreaterEqual(res2["block_index"], 1)
@@ -313,7 +317,7 @@ class BronetBackendTest(unittest.TestCase):
         self.assertEqual(stats_a["blocks"][0]["reward"], 1)
 
         # 6. Ponowna próba potwierdzenia informuje o wcześniejszym rozliczeniu
-        res3 = confirm_chlop_help(chlop_a["id"], chlop_b["id"], "pw_a")
+        res3 = confirm_chlop_help(chlop_a["id"], chlop_b["id"], "pw_a-haslo")
         self.assertEqual(res3["status"], "already_settled")
         self.assertTrue(res3["mutual_settled"])
 
@@ -760,20 +764,20 @@ class BronetBackendTest(unittest.TestCase):
         self.assertIn("billboard_hot_200", unlocked_billboard)
 
     def test_email_cannot_be_taken_over(self) -> None:
-        victim = create_profile({"name": "Paweł", "email": "wlasciciel@test.pl", "password": "ofiara1"})
-        attacker = create_profile({"name": "Marek", "email": "atak@test.pl", "password": "atak1"})
+        victim = create_profile({"name": "Paweł", "email": "wlasciciel@test.pl", "password": "ofiara1-haslo"})
+        attacker = create_profile({"name": "Marek", "email": "atak@test.pl", "password": "atak1-haslo"})
 
         # Zmiana e-maila na adres innego profilu jest odrzucana
         with self.assertRaises(ProfileValidationError):
             update_profile(
                 attacker["id"],
-                {"name": "Marek", "email": "wlasciciel@test.pl", "password": "atak1"},
+                {"name": "Marek", "email": "wlasciciel@test.pl", "password": "atak1-haslo"},
             )
         # Rejestracja na zajęty adres nie nadpisuje cudzego profilu
         with self.assertRaises(ProfileValidationError):
             create_profile({"name": "Marek", "email": "wlasciciel@test.pl", "password": "cokolwiek"})
 
-        self.assertEqual(authenticate_profile_by_email("wlasciciel@test.pl", "ofiara1")["id"], victim["id"])
+        self.assertEqual(authenticate_profile_by_email("wlasciciel@test.pl", "ofiara1-haslo")["id"], victim["id"])
         self.assertEqual(get_profile(victim["id"])["name"], "Paweł")
 
     def test_seed_profiles_are_marked_and_cannot_log_in(self) -> None:
@@ -783,7 +787,7 @@ class BronetBackendTest(unittest.TestCase):
             with self.assertRaises(ProfileAuthError):
                 authenticate_profile_by_email("marek@bronet.pl", pw)
 
-        real = create_profile({"name": "Adam", "email": "adam@test.pl", "password": "haslo1"})
+        real = create_profile({"name": "Adam", "email": "adam@test.pl", "password": "haslo1-haslo"})
         self.assertFalse(real["is_test"])
 
     def test_existing_db_seed_profiles_get_locked_on_startup(self) -> None:
@@ -806,8 +810,8 @@ class BronetBackendTest(unittest.TestCase):
     def test_simulator_only_touches_test_profiles(self) -> None:
         from app.economy_engine import economy_simulator
 
-        real_a = create_profile({"name": "Adam", "email": "adam@test.pl", "password": "haslo1"})
-        real_b = create_profile({"name": "Bartek", "email": "bartek@test.pl", "password": "haslo2"})
+        real_a = create_profile({"name": "Adam", "email": "adam@test.pl", "password": "haslo1-haslo"})
+        real_b = create_profile({"name": "Bartek", "email": "bartek@test.pl", "password": "haslo2-haslo"})
         for _ in range(20):
             economy_simulator.tick(custom_count=50)
         self.assertEqual(get_profile(real_a["id"])["chlopocoin_balance"], 0)
@@ -824,8 +828,8 @@ class BronetBackendTest(unittest.TestCase):
         owner = TestClient(app)
         other = TestClient(app)
         anon = TestClient(app)
-        a = owner.post("/api/profiles", json={"name": "Adam", "email": "adam@test.pl", "password": "haslo-a", "lat": 52.229676, "lng": 21.012229}).json()
-        b = other.post("/api/profiles", json={"name": "Bartek", "email": "bartek@test.pl", "password": "haslo-b"}).json()
+        a = owner.post("/api/profiles", json={"name": "Adam", "email": "adam@test.pl", "password": "haslo-a-haslo", "lat": 52.229676, "lng": 21.012229}).json()
+        b = other.post("/api/profiles", json={"name": "Bartek", "email": "bartek@test.pl", "password": "haslo-b-haslo"}).json()
 
         # Własny profil widać w całości, cudzy bez e-maila i z przybliżoną lokalizacją
         self.assertEqual(owner.get("/api/profiles/me").json()["email"], "adam@test.pl")
@@ -836,10 +840,10 @@ class BronetBackendTest(unittest.TestCase):
         self.assertTrue(all(p["email"] == "" for p in anon.get("/api/profiles").json()))
 
         # Edycja, usunięcie i potwierdzenie pomocy tylko z własnej sesji
-        payload = {"name": "Adam", "email": "adam@test.pl", "password": "haslo-a", "bio": "przejęty"}
+        payload = {"name": "Adam", "email": "adam@test.pl", "password": "haslo-a-haslo", "bio": "przejęty"}
         self.assertEqual(other.put(f"/api/profiles/{a['id']}", json=payload).status_code, 403)
         self.assertEqual(anon.put(f"/api/profiles/{a['id']}", json=payload).status_code, 401)
-        self.assertEqual(other.request("DELETE", f"/api/profiles/{a['id']}", json={"password": "haslo-a"}).status_code, 403)
+        self.assertEqual(other.request("DELETE", f"/api/profiles/{a['id']}", json={"password": "haslo-a-haslo"}).status_code, 403)
         self.assertEqual(
             other.post(f"/api/profiles/{a['id']}/confirm-help", json={"other_profile_id": b["id"]}).status_code,
             403,
@@ -866,6 +870,49 @@ class BronetBackendTest(unittest.TestCase):
         with get_db() as conn:
             row = conn.execute("SELECT password_hash FROM profiles WHERE id = ?", (b["id"],)).fetchone()
         self.assertEqual(row["password_hash"], "")
+
+    def test_hardening_rate_limits_passwords_headers_docs(self) -> None:
+        from fastapi.testclient import TestClient
+        from app.main import app
+
+        client = TestClient(app)
+
+        # Zasady haseł i walidacja danych profilu
+        short = client.post("/api/profiles", json={"name": "Adam", "email": "adam@test.pl", "password": "krotkie"})
+        self.assertEqual(short.status_code, 422)
+        too_many = client.post(
+            "/api/profiles",
+            json={"name": "Adam", "email": "adam@test.pl", "password": "dlugie-haslo", "can_help": [f"s{i}" for i in range(31)]},
+        )
+        self.assertEqual(too_many.status_code, 422)
+        bad_email = client.post("/api/profiles", json={"name": "Adam", "email": "nie-email", "password": "dlugie-haslo"})
+        self.assertEqual(bad_email.status_code, 422)
+        ok = client.post("/api/profiles", json={"name": "Adam", "email": "adam@test.pl", "password": "dlugie-haslo"})
+        self.assertEqual(ok.status_code, 201)
+
+        # Limit nieudanych logowań na konto
+        for _ in range(10):
+            res = client.post("/api/profiles/login", json={"email": "adam@test.pl", "password": "zle-haslo"})
+            self.assertEqual(res.status_code, 401)
+        blocked = client.post("/api/profiles/login", json={"email": "adam@test.pl", "password": "dlugie-haslo"})
+        self.assertEqual(blocked.status_code, 429)
+        self.assertIn("Retry-After", blocked.headers)
+
+        # Nagłówki bezpieczeństwa i wyłączona dokumentacja API
+        health = client.get("/api/health")
+        self.assertEqual(health.headers["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(health.headers["X-Frame-Options"], "DENY")
+        self.assertIn("frame-ancestors 'none'", health.headers["Content-Security-Policy"])
+        self.assertNotIn("Strict-Transport-Security", health.headers)
+        https_health = client.get("/api/health", headers={"X-Forwarded-Proto": "https"})
+        self.assertIn("max-age", https_health.headers["Strict-Transport-Security"])
+        self.assertEqual(client.get("/docs").status_code, 404)
+        self.assertEqual(client.get("/openapi.json").status_code, 404)
+
+        # Limit wiadomości na czacie
+        statuses = [client.post("/api/chat/messages", json={"message": f"m{i}"}).status_code for i in range(21)]
+        self.assertEqual(statuses[:20], [201] * 20)
+        self.assertEqual(statuses[20], 429)
 
 
 if __name__ == "__main__":
