@@ -44,6 +44,20 @@ BLOCKCHAIN_LOCK = threading.Lock()
 ADMIN_EMAIL = "pawel.zygler@gmail.com"
 
 
+# Profile testowe (seed + generowane przez symulator) nie mogą się logować:
+# ten znacznik nie jest poprawnym hashem PBKDF2, więc verify_password zawsze zwróci False.
+TEST_PROFILE_LOCKED_HASH = "!test-profile-login-disabled"
+
+# Hashe haseł profili seedowych, które były jawne w repozytorium ("bronet123" i "bronet").
+KNOWN_PUBLIC_SEED_HASHES = {
+    "8bc6d213a786434e2a4e109902b208ff$09a89f108fa9ec425783d32cff45b4a11d871024ca133517bc5fcd3dc5a5d13d",
+    "885c0276749c82c48bf192f3265b7ed8$5d6db8e2afafb4e4bc6476ec7966596fdba6cba31c3d886e463713c5ec54a0b5",
+}
+
+# Adresy profili generowanych przez symulator: imie.nazwisko.12345@bronet.pl
+SYNTHETIC_EMAIL_RE = re.compile(r"^[a-z]+\.[a-z]+\.\d{3,5}@bronet\.pl$")
+
+
 def is_admin_email(email: Optional[str]) -> bool:
     if not email:
         return False
@@ -154,6 +168,8 @@ def hash_password(raw_password: str) -> str:
 def verify_password(raw_password: str, stored_hash: str) -> bool:
     if not stored_hash:
         return True
+    if stored_hash.startswith("!"):
+        return False
     if not raw_password or "$" not in stored_hash:
         return False
     salt, expected_dk = stored_hash.split("$", 1)
@@ -538,8 +554,11 @@ def init_db(seed: bool = True) -> None:
             conn.execute("ALTER TABLE profiles ADD COLUMN role TEXT NOT NULL DEFAULT 'user';")
         if "achievement_points" not in cols:
             conn.execute("ALTER TABLE profiles ADD COLUMN achievement_points INTEGER NOT NULL DEFAULT 0;")
+        if "is_test" not in cols:
+            conn.execute("ALTER TABLE profiles ADD COLUMN is_test INTEGER NOT NULL DEFAULT 0;")
         conn.execute("UPDATE profiles SET role = 'admin' WHERE LOWER(TRIM(email)) = ?;", (ADMIN_EMAIL,))
         conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_is_test ON profiles(is_test);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_role ON profiles(role);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_share_location ON profiles(share_location);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_achievement_points ON profiles(achievement_points);")
@@ -715,7 +734,7 @@ def init_db(seed: bool = True) -> None:
             if current_count == 0:
                 with conn:
                     for item in SEED_PROFILES:
-                        _insert_profile_in_tx(conn, item)
+                        _insert_profile_in_tx(conn, {**item, "is_test": True})
 
             seed_json_path = BASE_DIR / "app" / "seed_profiles.json"
             if seed_json_path.exists():
@@ -735,7 +754,7 @@ def init_db(seed: bool = True) -> None:
                                 em = normalize_email(item.get("email"))
                                 if em and em in existing_emails:
                                     continue
-                                _insert_profile_in_tx(conn, item)
+                                _insert_profile_in_tx(conn, {**item, "is_test": True})
                                 if em:
                                     existing_emails.add(em)
                     except Exception as err:
@@ -759,11 +778,14 @@ def init_db(seed: bool = True) -> None:
                                 em = normalize_email(item.get("email"))
                                 if em and em in existing_emails:
                                     continue
-                                _insert_profile_in_tx(conn, item)
+                                _insert_profile_in_tx(conn, {**item, "is_test": True})
                                 if em:
                                     existing_emails.add(em)
                     except Exception as err:
                         print(f"Warning: Failed to load seed_it_profiles.json: {err}")
+
+        _mark_and_lock_test_profiles(conn)
+        _ensure_unique_email_index(conn)
 
         # Jeśli żaden profil nie ma jeszcze oznaczonej lokalizacji, przypisz przykładowe polskie miasta
         loc_row = conn.execute("SELECT COUNT(*) AS cnt FROM profiles WHERE share_location = 1").fetchone()
@@ -794,7 +816,9 @@ def init_db(seed: bool = True) -> None:
         if seed:
             count_blocks_row = conn.execute("SELECT COUNT(*) AS cnt FROM chlopocoin_blocks").fetchone()
             if count_blocks_row and count_blocks_row["cnt"] == 0:
-                seed_profs = conn.execute("SELECT id, name FROM profiles ORDER BY id ASC LIMIT 16").fetchall()
+                seed_profs = conn.execute(
+                    "SELECT id, name FROM profiles WHERE is_test = 1 ORDER BY id ASC LIMIT 16"
+                ).fetchall()
                 if len(seed_profs) >= 8:
                     history_pairs = [
                         (seed_profs[0]["id"], seed_profs[1]["id"], "2026-11-01T10:15:00+00:00"),
@@ -840,6 +864,74 @@ def init_db(seed: bool = True) -> None:
         invalidate_profiles_cache()
 
 
+def _seed_profile_emails() -> set:
+    emails = {normalize_email(p.get("email")) for p in SEED_PROFILES}
+    for name in ("seed_profiles.json", "seed_it_profiles.json"):
+        path = BASE_DIR / "app" / name
+        if not path.exists():
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                emails.update(normalize_email(p.get("email")) for p in json.load(f))
+        except Exception as err:
+            print(f"Warning: Failed to read {name}: {err}")
+    emails.discard("")
+    return emails
+
+
+def _mark_and_lock_test_profiles(conn: sqlite3.Connection) -> None:
+    """
+    Oznacza profile testowe (seed + symulator) flagą is_test i blokuje im logowanie.
+    Idempotentne: uruchamiane przy każdym starcie, także na istniejącej bazie produkcyjnej.
+    """
+    seed_emails = _seed_profile_emails()
+    rows = conn.execute("SELECT id, email, password_hash, is_test FROM profiles").fetchall()
+    test_ids = []
+    for r in rows:
+        email = normalize_email(r["email"])
+        if (
+            r["is_test"]
+            or email in seed_emails
+            or (r["password_hash"] or "") in KNOWN_PUBLIC_SEED_HASHES
+            or SYNTHETIC_EMAIL_RE.match(email)
+        ):
+            test_ids.append(r["id"])
+    for i in range(0, len(test_ids), 500):
+        chunk = test_ids[i : i + 500]
+        ph = ",".join("?" for _ in chunk)
+        conn.execute(
+            f"UPDATE profiles SET is_test = 1, password_hash = ? WHERE id IN ({ph})",
+            [TEST_PROFILE_LOCKED_HASH, *chunk],
+        )
+
+
+def _ensure_unique_email_index(conn: sqlite3.Connection) -> None:
+    """Unikalny e-mail na poziomie bazy (jeśli istniejące dane już mają duplikaty, zostaje sama walidacja w kodzie)."""
+    try:
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_email_unique ON profiles(email) WHERE email != ''"
+        )
+    except sqlite3.IntegrityError:
+        dupes = conn.execute(
+            "SELECT email, COUNT(*) AS c FROM profiles WHERE email != '' GROUP BY email HAVING c > 1"
+        ).fetchall()
+        print(
+            "Warning: duplicate profile emails exist, unique index not created: "
+            + ", ".join(f"{d['email']} ({d['c']})" for d in dupes)
+        )
+
+
+def _ensure_email_available(conn: sqlite3.Connection, email: str, profile_id: Optional[int] = None) -> None:
+    if not email:
+        return
+    row = conn.execute(
+        "SELECT id FROM profiles WHERE email = ? AND id != ? LIMIT 1",
+        (email, profile_id or -1),
+    ).fetchone()
+    if row:
+        raise ProfileValidationError("Ten adres e-mail jest już używany przez inny profil.")
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -849,10 +941,15 @@ def _insert_profile_in_tx(conn: sqlite3.Connection, data: Dict[str, Any]) -> int
     name = str(data.get("name") or "").strip()
     email = normalize_email(data.get("email"))
     validate_men_only(name, email)
-    pwd_hash = data.get("password_hash")
-    if not pwd_hash:
-        raw_password = str(data.get("password") or "")
-        pwd_hash = hash_password(raw_password) if raw_password else ""
+    _ensure_email_available(conn, email)
+    is_test = 1 if data.get("is_test") else 0
+    if is_test:
+        pwd_hash = TEST_PROFILE_LOCKED_HASH
+    else:
+        pwd_hash = data.get("password_hash")
+        if not pwd_hash:
+            raw_password = str(data.get("password") or "")
+            pwd_hash = hash_password(raw_password) if raw_password else ""
     contact = str(data.get("contact") or "").strip()
     if not contact and email:
         contact = email
@@ -875,9 +972,9 @@ def _insert_profile_in_tx(conn: sqlite3.Connection, data: Dict[str, Any]) -> int
         """
         INSERT INTO profiles (
             name, name_normalized, email, password_hash, contact, bio,
-            location_name, lat, lng, share_location, role, created_at, updated_at
+            location_name, lat, lng, share_location, role, is_test, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             name,
@@ -891,6 +988,7 @@ def _insert_profile_in_tx(conn: sqlite3.Connection, data: Dict[str, Any]) -> int
             lng,
             share_location,
             role,
+            is_test,
             now,
             now,
         ),
@@ -978,6 +1076,7 @@ def _hydrate_profiles(conn: sqlite3.Connection, profile_rows: List[sqlite3.Row])
                 "email": email_val,
                 "role": role_val,
                 "has_password": bool(pwd_hash),
+                "is_test": bool(r["is_test"]) if "is_test" in row_keys and r["is_test"] else False,
                 "can_help": by_profile[pid]["can_help"],
                 "need_help": by_profile[pid]["need_help"],
                 "contact": r["contact"],
@@ -1105,7 +1204,7 @@ def authenticate_profile_by_email(email: str, password: str = "") -> Optional[Di
         raise ProfileAuthError("Podaj hasło.")
     with get_db() as conn:
         row = conn.execute(
-            "SELECT * FROM profiles WHERE email = ? ORDER BY updated_at DESC, id DESC LIMIT 1",
+            "SELECT * FROM profiles WHERE email = ? ORDER BY id ASC LIMIT 1",
             (cleaned,),
         ).fetchone()
         if not row:
@@ -1135,13 +1234,13 @@ def create_profile(data: Dict[str, Any]) -> Dict[str, Any]:
     if email:
         with get_db() as conn:
             existing_row = conn.execute(
-                "SELECT id FROM profiles WHERE email = ? ORDER BY updated_at DESC, id DESC LIMIT 1",
+                "SELECT id FROM profiles WHERE email = ? LIMIT 1",
                 (email,),
             ).fetchone()
         if existing_row:
-            updated = update_profile(existing_row["id"], data)
-            if updated:
-                return updated
+            raise ProfileValidationError(
+                "Ten adres e-mail jest już zarejestrowany. Zaloguj się, aby edytować profil."
+            )
     raw_password = str(data.get("password") or "")
     if not raw_password:
         raise ProfileAuthError("Hasło jest wymagane.")
@@ -1186,6 +1285,7 @@ def update_profile(profile_id: int, data: Dict[str, Any]) -> Optional[Dict[str, 
         name = str(data.get("name") or "").strip()
         email = normalize_email(data.get("email"))
         validate_men_only(name, email)
+        _ensure_email_available(conn, email, profile_id)
         contact = str(data.get("contact") or "").strip()
         if not contact and email:
             contact = email
@@ -2247,7 +2347,8 @@ def generate_random_synthetic_profile() -> Dict[str, Any]:
     payload = {
         "name": full_name,
         "email": email,
-        "password": "haslo123chlop",
+        "password": secrets.token_urlsafe(16),
+        "is_test": True,
         "can_help": can_help,
         "need_help": need_help,
         "contact": email,

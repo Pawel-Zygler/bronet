@@ -67,6 +67,11 @@ export const ProfileCard = React.memo(function ProfileCard({
             🪙 <strong>{profile.chlopocoin_balance || 0}</strong> CC
           </span>
           {badge}
+          {profile.is_test && (
+            <span className="badge badge-test" title="Profil testowy, nie należy do prawdziwego użytkownika">
+              Profil testowy
+            </span>
+          )}
         </div>
         <a href={`/profil/${profile.id}`} className="card-open-link" onClick={handleOpen}>
           Zobacz profil →
