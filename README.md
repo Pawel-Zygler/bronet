@@ -22,7 +22,7 @@ URL lokalny: http://127.0.0.1:8000
 | Komenda | Zakres |
 |---|---|
 | `npm run test:unit` | Testy jednostkowe backendu (`unittest`, wymaga `pip install -r requirements-dev.txt`) |
-| `npm run test:frontend` | Testy jednostkowe frontendu (Vitest, `frontend/src/**/*.test.js`) |
+| `npm run test:frontend` | Testy jednostkowe i komponentów frontendu (Vitest, `frontend/src/**/*.test.{js,jsx}`) |
 | `npm run test:unit:coverage` | Testy jednostkowe backendu z raportem pokrycia |
 | `npm run test:smoke` | Szybkie testy E2E `@smoke` (Playwright, lokalnie) |
 | `npm run test:regression` | Pełna regresja E2E `@regression` (Playwright, lokalnie) |
@@ -31,6 +31,8 @@ URL lokalny: http://127.0.0.1:8000
 | `npm run test:ui` | Interaktywny tryb Playwright UI |
 | `npm run test:prod:smoke` | Testy `@smoke` na produkcji Railway |
 | `npm run test:prod:regression` | Pełna regresja `@regression` na produkcji Railway |
+
+Piramida testów: logikę i stany UI sprawdzają testy jednostkowe (backend `tests/`, frontend Vitest z testami komponentów w jsdom). E2E zostają dla krytycznych ścieżek przez całą aplikację, a `@smoke` to 7 z nich.
 
 Wspólne fixture'y E2E są w `e2e/support/fixtures.js`. `createProfile` zakłada profil przez API i usuwa go po teście, a `loginViaUi` i `logoutViaUi` logują przez formularz. Lokalny serwer testowy startuje z wyłączonym symulatorem ekonomii (`CHLOPCOIN_SIMULATOR_ENABLED=false`), żeby stan bazy nie zmieniał się w trakcie testów.
 

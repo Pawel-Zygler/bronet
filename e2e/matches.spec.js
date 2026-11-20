@@ -3,7 +3,7 @@ const { test, expect, uniqueId, loginViaUi } = require("./support/fixtures");
 test.describe("Zakładka Dopasowania (/dopasowania)", () => {
   test(
     "otwiera zakładkę 'Dopasowania' (chłop help auto-matching), przełącza kategorie i tryb kompaktowy",
-    { tag: ["@smoke", "@regression"] },
+    { tag: ["@regression"] },
     async ({ page }) => {
       await page.goto("/");
 
