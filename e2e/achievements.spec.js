@@ -1,4 +1,5 @@
 const { test, expect } = require("@playwright/test");
+const { loginAs, deleteOwnProfile } = require("./helpers");
 
 test.describe("Zakładka Osiągnięcia (/osiagniecia)", () => {
   test(
@@ -99,9 +100,7 @@ test.describe("Zakładka Osiągnięcia (/osiagniecia)", () => {
         await page.locator("#wow-toast-close").click();
         await expect(wowToast).not.toBeVisible();
       } finally {
-        await request.delete(`/api/profiles/${prof.id}`, {
-          data: { password: "haslo123waldek" },
-        });
+        await deleteOwnProfile(request, prof, "haslo123waldek");
       }
     }
   );

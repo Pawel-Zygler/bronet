@@ -109,7 +109,7 @@ export function WowAchievementNotification({ myProfile, onNavigate }) {
     let isMounted = true;
     const checkNotifications = async () => {
       try {
-        const notifs = await apiGet(`/api/achievements/notifications?profile_id=${myProfile.id}`);
+        const notifs = await apiGet(`/api/achievements/notifications`);
         if (isMounted && Array.isArray(notifs) && notifs.length > 0) {
           enqueueAchievements(notifs);
         }

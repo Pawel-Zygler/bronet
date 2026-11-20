@@ -1,4 +1,5 @@
 const { test, expect } = require("@playwright/test");
+const { loginAs, deleteOwnProfile } = require("./helpers");
 
 test.describe("Chłopczat & Wiadomości DM", () => {
   test(
@@ -90,6 +91,7 @@ test.describe("Chłopczat & Wiadomości DM", () => {
       try {
         // 2. Wejdź na aplikację jako Janek na komputerze (viewport 1280x800)
         await page.setViewportSize({ width: 1280, height: 800 });
+        await loginAs(page.request, profA.email, "haslo123janek");
         await page.addInitScript(
           ({ user }) => {
             localStorage.setItem("bronet_my_profile_id", String(user.id));
@@ -204,12 +206,8 @@ test.describe("Chłopczat & Wiadomości DM", () => {
         await expect(dmMessages).not.toContainText(testDmText);
         await expect(dmMessages).toContainText("Rozpocznij prywatną rozmowę z");
       } finally {
-        await request.delete(`/api/profiles/${profA.id}`, {
-          data: { password: "haslo123janek" },
-        });
-        await request.delete(`/api/profiles/${profB.id}`, {
-          data: { password: "haslo123bogdan" },
-        });
+        await deleteOwnProfile(request, profA, "haslo123janek");
+        await deleteOwnProfile(request, profB, "haslo123bogdan");
       }
     }
   );

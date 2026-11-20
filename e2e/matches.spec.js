@@ -1,4 +1,5 @@
 const { test, expect } = require("@playwright/test");
+const { loginAs, deleteOwnProfile } = require("./helpers");
 
 test.describe("Zakładka Dopasowania (/dopasowania)", () => {
   test(
@@ -85,17 +86,17 @@ test.describe("Zakładka Dopasowania (/dopasowania)", () => {
         const resA = await request.post("/api/profiles", { data: userA });
         expect(resA.ok()).toBeTruthy();
         const jsonA = await resA.json();
-        createdIds.push(jsonA.id);
+        createdIds.push(jsonA);
 
         const resB = await request.post("/api/profiles", { data: userB });
         expect(resB.ok()).toBeTruthy();
         const jsonB = await resB.json();
-        createdIds.push(jsonB.id);
+        createdIds.push(jsonB);
 
         const resC = await request.post("/api/profiles", { data: userC });
         expect(resC.ok()).toBeTruthy();
         const jsonC = await resC.json();
-        createdIds.push(jsonC.id);
+        createdIds.push(jsonC);
 
         // 2. Logowanie na profil A (Marian) w interfejsie
         await page.goto("/profil");
@@ -160,10 +161,8 @@ test.describe("Zakładka Dopasowania (/dopasowania)", () => {
         await expect(emailBtnB).toBeVisible();
         await expect(emailBtnB).toHaveAttribute("href", new RegExp(`mailto:${userB.email}`));
       } finally {
-        for (const id of createdIds) {
-          await request.delete(`/api/profiles/${id}`, {
-            data: { password: testPw },
-          });
+        for (const prof of createdIds) {
+          await deleteOwnProfile(request, prof, testPw);
         }
       }
     }
