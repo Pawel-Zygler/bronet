@@ -1,4 +1,5 @@
 const { test, expect } = require("@playwright/test");
+const { loginAs, deleteOwnProfile } = require("./helpers");
 
 test.describe("Zakładka Profil (/profil) & Profil Chłopa (/profil/:id)", () => {
   test(
@@ -90,9 +91,7 @@ test.describe("Zakładka Profil (/profil) & Profil Chłopa (/profil/:id)", () =>
         await expect(page.locator(".profile-card")).toHaveCount(0);
       } finally {
         if (createdProfileId) {
-          await request.delete(`/api/profiles/${createdProfileId}`, {
-            data: { password: testPw },
-          });
+          await deleteOwnProfile(request, { id: createdProfileId, email: testEmail }, testPw);
         }
       }
     }
@@ -151,12 +150,12 @@ test.describe("Zakładka Profil (/profil) & Profil Chłopa (/profil/:id)", () =>
         const resA = await request.post("/api/profiles", { data: userA });
         expect(resA.ok()).toBeTruthy();
         const profA = await resA.json();
-        createdIds.push(profA.id);
+        createdIds.push(profA);
 
         const resB = await request.post("/api/profiles", { data: userB });
         expect(resB.ok()).toBeTruthy();
         const profB = await resB.json();
-        createdIds.push(profB.id);
+        createdIds.push(profB);
 
         // 2. Logowanie Wojtka (Chłop A)
         await page.goto("/profil");
@@ -286,10 +285,8 @@ test.describe("Zakładka Profil (/profil) & Profil Chłopa (/profil/:id)", () =>
         await expect(engineCard).toContainText(/TPS/);
         await expect(engineCard).toContainText("60%");
       } finally {
-        for (const id of createdIds) {
-          await request.delete(`/api/profiles/${id}`, {
-            data: { password: testPw },
-          });
+        for (const prof of createdIds) {
+          await deleteOwnProfile(request, prof, testPw);
         }
       }
     }
@@ -358,9 +355,7 @@ test.describe("Zakładka Profil (/profil) & Profil Chłopa (/profil/:id)", () =>
         await globalLink.click();
         await expect(page).toHaveURL("/chlopchain");
       } finally {
-        await request.delete(`/api/profiles/${prof.id}`, {
-          data: { password: "haslo123wallet" },
-        });
+        await deleteOwnProfile(request, prof, "haslo123wallet");
       }
     }
   );

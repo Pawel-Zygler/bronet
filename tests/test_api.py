@@ -488,17 +488,37 @@ class BronetBackendTest(unittest.TestCase):
         self.assertEqual(res_no_auth.status_code, 403)
         self.assertIn("Brak uprawnień", res_no_auth.json()["detail"])
 
-        res_user_auth = client.post(
-            "/api/chlopocoin/simulator/tick",
-            headers={"X-Admin-Email": "boguslaw.user@bronet.test"},
-        )
-        self.assertEqual(res_user_auth.status_code, 403)
-
-        # 4. Kontrolki ekonomii z uprawnieniem admina -> 200 OK
-        res_admin_auth = client.post(
+        # Sam nagłówek z adresem admina nie daje już uprawnień
+        res_header_only = client.post(
             "/api/chlopocoin/simulator/tick",
             headers={"X-Admin-Email": "pawel.zygler@gmail.com"},
         )
+        self.assertEqual(res_header_only.status_code, 403)
+
+        user_client = TestClient(app)
+        self.assertEqual(
+            user_client.post(
+                "/api/profiles/login",
+                json={"email": "boguslaw.user@bronet.test", "password": "haslo123user"},
+            ).status_code,
+            200,
+        )
+        res_user_auth = user_client.post(
+            "/api/chlopocoin/simulator/tick",
+            headers={"X-Admin-Email": "pawel.zygler@gmail.com"},
+        )
+        self.assertEqual(res_user_auth.status_code, 403)
+
+        # 4. Kontrolki ekonomii z sesją admina -> 200 OK
+        admin_client = TestClient(app)
+        self.assertEqual(
+            admin_client.post(
+                "/api/profiles/login",
+                json={"email": "pawel.zygler@gmail.com", "password": "adminhaslo123"},
+            ).status_code,
+            200,
+        )
+        res_admin_auth = admin_client.post("/api/chlopocoin/simulator/tick")
         self.assertEqual(res_admin_auth.status_code, 200)
         self.assertIn("cycle_number", res_admin_auth.json())
 
@@ -506,10 +526,7 @@ class BronetBackendTest(unittest.TestCase):
         res_gen_no_auth = client.post("/api/chlopocoin/simulator/generate-profile")
         self.assertEqual(res_gen_no_auth.status_code, 403)
 
-        res_gen_admin = client.post(
-            "/api/chlopocoin/simulator/generate-profile",
-            headers={"X-Admin-Email": "pawel.zygler@gmail.com"},
-        )
+        res_gen_admin = admin_client.post("/api/chlopocoin/simulator/generate-profile")
         self.assertEqual(res_gen_admin.status_code, 200)
         created_gen = res_gen_admin.json()
         self.assertIn("name", created_gen)
@@ -525,7 +542,6 @@ class BronetBackendTest(unittest.TestCase):
         """
         from fastapi.testclient import TestClient
         from app.main import app
-        client = TestClient(app)
 
         # Utwórz 2 testowe profile
         p1 = create_profile({
@@ -538,18 +554,30 @@ class BronetBackendTest(unittest.TestCase):
             "email": "bartek.dm@bronet.test",
             "password": "haslo123bartek",
         })
+        c1 = TestClient(app)
+        c2 = TestClient(app)
+        c1.post("/api/profiles/login", json={"email": "wojtek.dm@bronet.test", "password": "haslo123wojtek"})
+        c2.post("/api/profiles/login", json={"email": "bartek.dm@bronet.test", "password": "haslo123bartek"})
+
+        # Bez sesji: brak dostępu, a podanie cudzego profile_id nic nie daje
+        anon = TestClient(app)
+        self.assertEqual(anon.get(f"/api/dm/conversations?profile_id={p1['id']}").status_code, 401)
+        self.assertEqual(
+            anon.post(f"/api/dm/messages/{p2['id']}", json={"message": "podszywka", "profile_id": p1["id"]}).status_code,
+            401,
+        )
 
         # 1. Próba wysłania wiadomości do samego siebie -> 422
-        res_self = client.post(
+        res_self = c1.post(
             f"/api/dm/messages/{p1['id']}",
-            json={"message": "Hej do lustra", "profile_id": p1["id"]},
+            json={"message": "Hej do lustra"},
         )
         self.assertEqual(res_self.status_code, 422)
 
         # 2. Wysyłanie DM z p1 do p2
-        res_send = client.post(
+        res_send = c1.post(
             f"/api/dm/messages/{p2['id']}",
-            json={"message": "Cześć Bartek, potrzebujesz pomocy z spawaniem?", "profile_id": p1["id"]},
+            json={"message": "Cześć Bartek, potrzebujesz pomocy z spawaniem?"},
         )
         self.assertEqual(res_send.status_code, 201)
         msg_data = res_send.json()
@@ -559,12 +587,12 @@ class BronetBackendTest(unittest.TestCase):
         msg1_id = msg_data["id"]
 
         # 3. Sprawdzenie licznika nieprzeczytanych dla p2
-        unread_res = client.get(f"/api/dm/unread-count?profile_id={p2['id']}")
+        unread_res = c2.get(f"/api/dm/unread-count")
         self.assertEqual(unread_res.status_code, 200)
         self.assertEqual(unread_res.json()["unread_count"], 1)
 
         # 4. Lista konwersacji dla p2 (Messenger/LinkedIn inbox)
-        convs_res = client.get(f"/api/dm/conversations?profile_id={p2['id']}")
+        convs_res = c2.get(f"/api/dm/conversations")
         self.assertEqual(convs_res.status_code, 200)
         convs = convs_res.json()
         self.assertEqual(len(convs), 1)
@@ -574,47 +602,47 @@ class BronetBackendTest(unittest.TestCase):
         self.assertIn("spawaniem", convs[0]["last_message"])
 
         # 5. Odczyt wiadomości przez p2 (mark_read=True domyślnie)
-        thread_res = client.get(f"/api/dm/messages/{p1['id']}?profile_id={p2['id']}")
+        thread_res = c2.get(f"/api/dm/messages/{p1['id']}")
         self.assertEqual(thread_res.status_code, 200)
         thread = thread_res.json()
         self.assertEqual(len(thread), 1)
         self.assertEqual(thread[0]["id"], msg1_id)
 
         # Licznik nieprzeczytanych p2 po odczycie -> 0
-        unread_res_after = client.get(f"/api/dm/unread-count?profile_id={p2['id']}")
+        unread_res_after = c2.get(f"/api/dm/unread-count")
         self.assertEqual(unread_res_after.json()["unread_count"], 0)
 
         # 6. Odpowiedź od p2 do p1
-        res_reply = client.post(
+        res_reply = c2.post(
             f"/api/dm/messages/{p1['id']}",
-            json={"message": "Jasne, chętnie! Kiedy masz czas?", "profile_id": p2["id"]},
+            json={"message": "Jasne, chętnie! Kiedy masz czas?"},
         )
         self.assertEqual(res_reply.status_code, 201)
         msg2_id = res_reply.json()["id"]
 
         # Wątek p1 ma teraz 2 wiadomości
-        thread_p1 = client.get(f"/api/dm/messages/{p2['id']}?profile_id={p1['id']}")
+        thread_p1 = c1.get(f"/api/dm/messages/{p2['id']}")
         self.assertEqual(len(thread_p1.json()), 2)
 
         # 7. Usunięcie pojedynczej wiadomości przez p1
-        del_single = client.delete(f"/api/dm/messages/{msg1_id}?profile_id={p1['id']}")
+        del_single = c1.delete(f"/api/dm/messages/{msg1_id}")
         self.assertEqual(del_single.status_code, 200)
 
         # Wątek p1 ma teraz 1 wiadomość (druga została ukryta dla p1)
-        thread_p1_after = client.get(f"/api/dm/messages/{p2['id']}?profile_id={p1['id']}")
+        thread_p1_after = c1.get(f"/api/dm/messages/{p2['id']}")
         self.assertEqual(len(thread_p1_after.json()), 1)
         self.assertEqual(thread_p1_after.json()[0]["id"], msg2_id)
 
         # Dla p2 wiadomość msg1 nadal istnieje (chyba że p2 też ją usunie)
-        thread_p2_after = client.get(f"/api/dm/messages/{p1['id']}?profile_id={p2['id']}")
+        thread_p2_after = c2.get(f"/api/dm/messages/{p1['id']}")
         self.assertEqual(len(thread_p2_after.json()), 2)
 
         # 8. Wyczyść całą historię konwersacji z p1 dla p2
-        clear_res = client.delete(f"/api/dm/conversations/{p1['id']}?profile_id={p2['id']}")
+        clear_res = c2.delete(f"/api/dm/conversations/{p1['id']}")
         self.assertEqual(clear_res.status_code, 200)
 
         # Teraz p2 ma pusty wątek z p1
-        thread_p2_cleared = client.get(f"/api/dm/messages/{p1['id']}?profile_id={p2['id']}")
+        thread_p2_cleared = c2.get(f"/api/dm/messages/{p1['id']}")
         self.assertEqual(len(thread_p2_cleared.json()), 0)
 
     def test_achievements_gamification_and_notifications(self) -> None:
@@ -688,21 +716,28 @@ class BronetBackendTest(unittest.TestCase):
         self.assertIn("first_block", unlocked_after)
 
         # Powiadomienia w stylu WoW: endpoint /api/achievements/notifications zwraca nowe osiągnięcie
-        notif_res = client.get(f"/api/achievements/notifications?profile_id={prof_a['id']}")
+        client.post("/api/profiles/login", json={"email": "stanislaw.ach@bronet.test", "password": "haslo123ach"})
+        notif_res = client.get("/api/achievements/notifications")
         self.assertEqual(notif_res.status_code, 200)
         notifs = notif_res.json()
         notif_ids = {n["id"] for n in notifs}
         self.assertIn("first_aid_1", notif_ids)
 
         # Drugie pobranie powiadomień: lista jest pusta (oznaczone jako przeczytane)
-        notif_empty = client.get(f"/api/achievements/notifications?profile_id={prof_a['id']}")
+        notif_empty = client.get("/api/achievements/notifications")
         self.assertEqual(len(notif_empty.json()), 0)
+
+        # Przeliczanie osiągnięć jest tylko dla admina
+        self.assertEqual(client.post(f"/api/achievements/evaluate?profile_id={prof_a['id']}").status_code, 403)
+        create_profile({"name": "Paweł Zygler", "email": "pawel.zygler@gmail.com", "password": "adminhaslo123"})
+        admin_client = TestClient(app)
+        admin_client.post("/api/profiles/login", json={"email": "pawel.zygler@gmail.com", "password": "adminhaslo123"})
 
         # 4. Test Server First: pierwszy do zdobycia 10 Coinów
         with get_db() as conn:
             conn.execute("UPDATE profiles SET chlopocoin_balance = 10 WHERE id = ?", (prof_a["id"],))
 
-        client.post(f"/api/achievements/evaluate?profile_id={prof_a['id']}")
+        admin_client.post(f"/api/achievements/evaluate?profile_id={prof_a['id']}")
         prof_a_ach = client.get(f"/api/achievements/profile/{prof_a['id']}").json()
         unlocked_a = {u["id"] for u in prof_a_ach["unlocked"]}
         self.assertIn("server_first_10", unlocked_a)
@@ -712,14 +747,14 @@ class BronetBackendTest(unittest.TestCase):
         with get_db() as conn:
             conn.execute("UPDATE profiles SET chlopocoin_balance = 10 WHERE id = ?", (prof_b["id"],))
 
-        client.post(f"/api/achievements/evaluate?profile_id={prof_b['id']}")
+        admin_client.post(f"/api/achievements/evaluate?profile_id={prof_b['id']}")
         prof_b_ach = client.get(f"/api/achievements/profile/{prof_b['id']}").json()
         unlocked_b = {u["id"] for u in prof_b_ach["unlocked"]}
         self.assertIn("first_aid_2", unlocked_b)
         self.assertNotIn("server_first_10", unlocked_b) # Już zajęte przez Stanisława!
 
         # 5. Test Billboard Hot 200 (Pozostań #1 przez 7 dni)
-        client.post(f"/api/achievements/evaluate?profile_id={prof_a['id']}&billboard_force_days=7")
+        admin_client.post(f"/api/achievements/evaluate?profile_id={prof_a['id']}&billboard_force_days=7")
         prof_a_billboard = client.get(f"/api/achievements/profile/{prof_a['id']}").json()
         unlocked_billboard = {u["id"] for u in prof_a_billboard["unlocked"]}
         self.assertIn("billboard_hot_200", unlocked_billboard)
@@ -780,6 +815,57 @@ class BronetBackendTest(unittest.TestCase):
 
         generated = economy_simulator.generate_profile()
         self.assertTrue(generated["is_test"])
+
+    def test_session_authorization(self) -> None:
+        from fastapi.testclient import TestClient
+        from app.database import get_db
+        from app.main import app
+
+        owner = TestClient(app)
+        other = TestClient(app)
+        anon = TestClient(app)
+        a = owner.post("/api/profiles", json={"name": "Adam", "email": "adam@test.pl", "password": "haslo-a", "lat": 52.229676, "lng": 21.012229}).json()
+        b = other.post("/api/profiles", json={"name": "Bartek", "email": "bartek@test.pl", "password": "haslo-b"}).json()
+
+        # Własny profil widać w całości, cudzy bez e-maila i z przybliżoną lokalizacją
+        self.assertEqual(owner.get("/api/profiles/me").json()["email"], "adam@test.pl")
+        self.assertEqual(anon.get("/api/profiles/me").status_code, 401)
+        seen_by_other = other.get(f"/api/profiles/{a['id']}").json()
+        self.assertEqual(seen_by_other["email"], "")
+        self.assertEqual(seen_by_other["lat"], 52.23)
+        self.assertTrue(all(p["email"] == "" for p in anon.get("/api/profiles").json()))
+
+        # Edycja, usunięcie i potwierdzenie pomocy tylko z własnej sesji
+        payload = {"name": "Adam", "email": "adam@test.pl", "password": "haslo-a", "bio": "przejęty"}
+        self.assertEqual(other.put(f"/api/profiles/{a['id']}", json=payload).status_code, 403)
+        self.assertEqual(anon.put(f"/api/profiles/{a['id']}", json=payload).status_code, 401)
+        self.assertEqual(other.request("DELETE", f"/api/profiles/{a['id']}", json={"password": "haslo-a"}).status_code, 403)
+        self.assertEqual(
+            other.post(f"/api/profiles/{a['id']}/confirm-help", json={"other_profile_id": b["id"]}).status_code,
+            403,
+        )
+        self.assertEqual(
+            owner.post(f"/api/profiles/{a['id']}/confirm-help", json={"other_profile_id": b["id"]}).status_code,
+            200,
+        )
+
+        # Czat: gość nie podszyje się pod zarejestrowanego użytkownika
+        msg = anon.post("/api/chat/messages", json={"message": "hej", "author_name": "Adam", "profile_id": a["id"]}).json()
+        self.assertIsNone(msg["profile_id"])
+        self.assertEqual(msg["author_name"], "Adam (gość)")
+
+        # Wylogowanie unieważnia sesję
+        owner.post("/api/profiles/logout")
+        self.assertEqual(owner.get("/api/profiles/me").status_code, 401)
+
+        # Konto bez hasła nie jest już przejmowane przy pierwszym logowaniu
+        with get_db() as conn:
+            conn.execute("UPDATE profiles SET password_hash = '' WHERE id = ?", (b["id"],))
+        res = anon.post("/api/profiles/login", json={"email": "bartek@test.pl", "password": "nowe-haslo"})
+        self.assertEqual(res.status_code, 401)
+        with get_db() as conn:
+            row = conn.execute("SELECT password_hash FROM profiles WHERE id = ?", (b["id"],)).fetchone()
+        self.assertEqual(row["password_hash"], "")
 
 
 if __name__ == "__main__":
