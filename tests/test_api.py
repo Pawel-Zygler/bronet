@@ -724,6 +724,63 @@ class BronetBackendTest(unittest.TestCase):
         unlocked_billboard = {u["id"] for u in prof_a_billboard["unlocked"]}
         self.assertIn("billboard_hot_200", unlocked_billboard)
 
+    def test_email_cannot_be_taken_over(self) -> None:
+        victim = create_profile({"name": "Paweł", "email": "wlasciciel@test.pl", "password": "ofiara1"})
+        attacker = create_profile({"name": "Marek", "email": "atak@test.pl", "password": "atak1"})
+
+        # Zmiana e-maila na adres innego profilu jest odrzucana
+        with self.assertRaises(ProfileValidationError):
+            update_profile(
+                attacker["id"],
+                {"name": "Marek", "email": "wlasciciel@test.pl", "password": "atak1"},
+            )
+        # Rejestracja na zajęty adres nie nadpisuje cudzego profilu
+        with self.assertRaises(ProfileValidationError):
+            create_profile({"name": "Marek", "email": "wlasciciel@test.pl", "password": "cokolwiek"})
+
+        self.assertEqual(authenticate_profile_by_email("wlasciciel@test.pl", "ofiara1")["id"], victim["id"])
+        self.assertEqual(get_profile(victim["id"])["name"], "Paweł")
+
+    def test_seed_profiles_are_marked_and_cannot_log_in(self) -> None:
+        marek = list_profiles(query="marek@bronet.pl")[0]
+        self.assertTrue(marek["is_test"])
+        for pw in ("bronet", "bronet123", ""):
+            with self.assertRaises(ProfileAuthError):
+                authenticate_profile_by_email("marek@bronet.pl", pw)
+
+        real = create_profile({"name": "Adam", "email": "adam@test.pl", "password": "haslo1"})
+        self.assertFalse(real["is_test"])
+
+    def test_existing_db_seed_profiles_get_locked_on_startup(self) -> None:
+        from app.database import KNOWN_PUBLIC_SEED_HASHES, TEST_PROFILE_LOCKED_HASH, get_db
+
+        legacy_hash = next(iter(KNOWN_PUBLIC_SEED_HASHES))
+        with get_db() as conn:
+            conn.execute(
+                "UPDATE profiles SET is_test = 0, password_hash = ? WHERE email = 'kamil@bronet.pl'",
+                (legacy_hash,),
+            )
+        init_db(seed=True)
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT is_test, password_hash FROM profiles WHERE email = 'kamil@bronet.pl'"
+            ).fetchone()
+        self.assertEqual(row["is_test"], 1)
+        self.assertEqual(row["password_hash"], TEST_PROFILE_LOCKED_HASH)
+
+    def test_simulator_only_touches_test_profiles(self) -> None:
+        from app.economy_engine import economy_simulator
+
+        real_a = create_profile({"name": "Adam", "email": "adam@test.pl", "password": "haslo1"})
+        real_b = create_profile({"name": "Bartek", "email": "bartek@test.pl", "password": "haslo2"})
+        for _ in range(20):
+            economy_simulator.tick(custom_count=50)
+        self.assertEqual(get_profile(real_a["id"])["chlopocoin_balance"], 0)
+        self.assertEqual(get_profile(real_b["id"])["chlopocoin_balance"], 0)
+
+        generated = economy_simulator.generate_profile()
+        self.assertTrue(generated["is_test"])
+
 
 if __name__ == "__main__":
     unittest.main()
