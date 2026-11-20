@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test");
+const { test, expect, uniqueId, loginViaUi, logoutViaUi } = require("./support/fixtures");
 
 test.describe("Zakładka Dopasowania (/dopasowania)", () => {
   test(
@@ -46,9 +46,8 @@ test.describe("Zakładka Dopasowania (/dopasowania)", () => {
     {
       tag: ["@smoke", "@regression"]
     },
-    async ({ page, request }) => {
-      test.setTimeout(60000);
-      const uid = `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    async ({ page, createProfile }) => {
+      const uid = uniqueId();
       const skillMutualA = `spawacz_${uid}`;
       const skillMutualB = `stolarz_${uid}`;
       const skillExtraC = `pilot_${uid}`;
@@ -78,94 +77,69 @@ test.describe("Zakładka Dopasowania (/dopasowania)", () => {
         need_help: [skillMutualA],
       };
 
-      const createdIds = [];
+      // 1. Utworzenie profili A, B i C przez API
+      await createProfile(userA);
+      await createProfile(userB);
+      await createProfile(userC);
 
-      try {
-        // 1. Utworzenie profili A, B i C przez API
-        const resA = await request.post("/api/profiles", { data: userA });
-        expect(resA.ok()).toBeTruthy();
-        const jsonA = await resA.json();
-        createdIds.push(jsonA.id);
+      // 2. Logowanie na profil A (Marian) w interfejsie
+      await loginViaUi(page, userA);
 
-        const resB = await request.post("/api/profiles", { data: userB });
-        expect(resB.ok()).toBeTruthy();
-        const jsonB = await resB.json();
-        createdIds.push(jsonB.id);
+      // 3. Przejście do zakładki Dopasowania
+      await page.locator(".desktop-nav").getByRole("link", { name: "Dopasowania" }).click();
+      await expect(page).toHaveURL("/dopasowania");
+      await expect(page.locator(".matching-context-name")).toHaveText(userA.name);
 
-        const resC = await request.post("/api/profiles", { data: userC });
-        expect(resC.ok()).toBeTruthy();
-        const jsonC = await resC.json();
-        createdIds.push(jsonC.id);
+      // 4. Weryfikacja sekcji 'Wzajemna pomoc 1:1' (User B pasuje 1:1, User C nie pasuje 1:1)
+      const tabMutual = page.locator("#tab-mutual");
+      await expect(tabMutual).toBeVisible();
+      await expect(tabMutual).toHaveAttribute("aria-selected", "true");
 
-        // 2. Logowanie na profil A (Marian) w interfejsie
-        await page.goto("/profil");
-        await page.locator("#login-email").fill(userA.email);
-        await page.locator("#login-password").fill(testPw);
-        await page.locator("#login-password").press("Enter");
-        await expect(page.locator(".desktop-nav")).toContainText(`Profil (${userA.name})`);
+      // Bogdan (User B) jest widoczny w dopasowaniach 1:1
+      const cardB = page.locator(".match-card", { hasText: userB.name });
+      await expect(cardB).toBeVisible();
+      await expect(cardB.locator(".badge-mutual")).toContainText("Wzajemna pomoc 1:1");
+      await expect(cardB).toContainText(skillMutualB); // On pomoże z
+      await expect(cardB).toContainText(skillMutualA); // Ty zaoferujesz
 
-        // 3. Przejście do zakładki Dopasowania
-        await page.locator(".desktop-nav").getByRole("link", { name: "Dopasowania" }).click();
-        await expect(page).toHaveURL("/dopasowania");
-        await expect(page.locator(".matching-context-name")).toHaveText(userA.name);
+      // Cezary (User C) NIE powinien być w sekcji 1:1
+      await expect(page.locator(".match-card", { hasText: userC.name })).toHaveCount(0);
 
-        // 4. Weryfikacja sekcji 'Wzajemna pomoc 1:1' (User B pasuje 1:1, User C nie pasuje 1:1)
-        const tabMutual = page.locator("#tab-mutual");
-        await expect(tabMutual).toBeVisible();
-        await expect(tabMutual).toHaveAttribute("aria-selected", "true");
+      // 5. Weryfikacja sekcji 'Możesz pomóc' (User C oraz User B są widoczni, bo Marian może pomóc im obu)
+      const tabIHelp = page.locator("#tab-i-help");
+      await tabIHelp.click();
+      await expect(tabIHelp).toHaveAttribute("aria-selected", "true");
 
-        // Bogdan (User B) jest widoczny w dopasowaniach 1:1
-        const cardB = page.locator(".match-card", { hasText: userB.name });
-        await expect(cardB).toBeVisible();
-        await expect(cardB.locator(".badge-mutual")).toContainText("Wzajemna pomoc 1:1");
-        await expect(cardB).toContainText(skillMutualB); // On pomoże z
-        await expect(cardB).toContainText(skillMutualA); // Ty zaoferujesz
+      // Cezary (User C) jest widoczny w 'Możesz pomóc'
+      const cardC = page.locator(".match-card", { hasText: userC.name });
+      await expect(cardC).toBeVisible();
+      await expect(cardC.locator(".badge-i-help")).toContainText("Możesz mu pomóc");
+      await expect(cardC).toContainText(skillMutualA); // Ty zaoferujesz
 
-        // Cezary (User C) NIE powinien być w sekcji 1:1
-        await expect(page.locator(".match-card", { hasText: userC.name })).toHaveCount(0);
+      // 6. Sprawdzenie spójności w widoku kompaktowym
+      const compactBtn = page.locator("#compact-view-toggle");
+      await compactBtn.click();
+      await expect(compactBtn).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator(".matching-compact-list")).toBeVisible();
 
-        // 5. Weryfikacja sekcji 'Możesz pomóc' (User C oraz User B są widoczni, bo Marian może pomóc im obu)
-        const tabIHelp = page.locator("#tab-i-help");
-        await tabIHelp.click();
-        await expect(tabIHelp).toHaveAttribute("aria-selected", "true");
+      const compactItemC = page.locator(".matching-compact-item", { hasText: userC.name });
+      await expect(compactItemC).toBeVisible();
+      await expect(compactItemC).toContainText("Ty pomożesz z:");
+      await expect(compactItemC).toContainText(skillMutualA);
 
-        // Cezary (User C) jest widoczny w 'Możesz pomóc'
-        const cardC = page.locator(".match-card", { hasText: userC.name });
-        await expect(cardC).toBeVisible();
-        await expect(cardC.locator(".badge-i-help")).toContainText("Możesz mu pomóc");
-        await expect(cardC).toContainText(skillMutualA); // Ty zaoferujesz
+      // Przełączenie na tab 1:1 w widoku kompaktowym
+      await tabMutual.click();
+      const compactItemB = page.locator(".matching-compact-item", { hasText: userB.name });
+      await expect(compactItemB).toBeVisible();
+      await expect(compactItemB).toContainText("pomoże Ci z:");
+      await expect(compactItemB).toContainText(skillMutualB);
+      await expect(compactItemB).toContainText("Ty pomożesz z:");
+      await expect(compactItemB).toContainText(skillMutualA);
 
-        // 6. Sprawdzenie spójności w widoku kompaktowym
-        const compactBtn = page.locator("#compact-view-toggle");
-        await compactBtn.click();
-        await expect(compactBtn).toHaveAttribute("aria-pressed", "true");
-        await expect(page.locator(".matching-compact-list")).toBeVisible();
-
-        const compactItemC = page.locator(".matching-compact-item", { hasText: userC.name });
-        await expect(compactItemC).toBeVisible();
-        await expect(compactItemC).toContainText("Ty pomożesz z:");
-        await expect(compactItemC).toContainText(skillMutualA);
-
-        // Przełączenie na tab 1:1 w widoku kompaktowym
-        await tabMutual.click();
-        const compactItemB = page.locator(".matching-compact-item", { hasText: userB.name });
-        await expect(compactItemB).toBeVisible();
-        await expect(compactItemB).toContainText("pomoże Ci z:");
-        await expect(compactItemB).toContainText(skillMutualB);
-        await expect(compactItemB).toContainText("Ty pomożesz z:");
-        await expect(compactItemB).toContainText(skillMutualA);
-
-        // Przycisk kontaktu (mailto) do Bogdana
-        const emailBtnB = compactItemB.locator(".compact-email-btn");
-        await expect(emailBtnB).toBeVisible();
-        await expect(emailBtnB).toHaveAttribute("href", new RegExp(`mailto:${userB.email}`));
-      } finally {
-        for (const id of createdIds) {
-          await request.delete(`/api/profiles/${id}`, {
-            data: { password: testPw },
-          });
-        }
-      }
+      // Przycisk kontaktu (mailto) do Bogdana
+      const emailBtnB = compactItemB.locator(".compact-email-btn");
+      await expect(emailBtnB).toBeVisible();
+      await expect(emailBtnB).toHaveAttribute("href", new RegExp(`mailto:${userB.email}`));
     }
   );
 });
