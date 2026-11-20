@@ -22,7 +22,10 @@ module.exports = defineConfig({
   workers: process.env.CI ? 2 : 3,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 1,
+  // Retry zostaje, żeby zebrać trace z drugiej próby, ale w CI test, który przeszedł
+  // dopiero za drugim razem (flaky), oblewa cały przebieg zamiast być ukrywany.
+  retries: process.env.CI ? 1 : 0,
+  failOnFlakyTests: !!process.env.CI,
   reporter: reporters,
   expect: {
     timeout: 10_000,
