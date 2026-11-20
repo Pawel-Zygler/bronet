@@ -13,6 +13,10 @@ export default defineConfig({
     outDir: "../static",
     emptyOutDir: true,
   },
+  test: {
+    environment: "node",
+    include: ["src/**/*.test.{js,jsx}"],
+  },
   server: {
     port: 5173,
     proxy: {
