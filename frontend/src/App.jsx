@@ -1,5 +1,5 @@
 import React, { startTransition, useCallback, useEffect, useRef, useState } from "react";
-import { apiGet } from "./api";
+import { apiGet, apiSend } from "./api";
 import { GlobalChat } from "./components/GlobalChat";
 import { MobileNav } from "./components/MobileNav";
 import { Topbar } from "./components/Topbar";
@@ -182,7 +182,8 @@ export function App() {
       .catch(() => {});
 
     if (savedId) {
-      apiGet(`/api/profiles/${savedId}`)
+      // Zalogowany profil potwierdza serwer na podstawie ciasteczka sesji
+      apiGet("/api/profiles/me")
         .then((p) => {
           if (myProfileIdRef.current !== savedId) return;
           setMyProfile(p, true);
@@ -302,6 +303,7 @@ export function App() {
   );
 
   const handleLogout = useCallback(() => {
+    apiSend("/api/profiles/logout", "POST").catch(() => {});
     setSessionPasswords({});
     setMyProfile(null, true);
     if (window.location.pathname === "/profil") {

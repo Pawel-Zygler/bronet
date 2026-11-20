@@ -121,7 +121,7 @@ export function GlobalChat({ myProfile, onOpenProfile, directPartner, onClearDir
       return;
     }
     try {
-      const res = await apiGet(`/api/dm/unread-count?profile_id=${myProfile.id}`);
+      const res = await apiGet(`/api/dm/unread-count`);
       if (res && typeof res.unread_count === "number") {
         setDmUnreadCount(res.unread_count);
       }
@@ -132,7 +132,7 @@ export function GlobalChat({ myProfile, onOpenProfile, directPartner, onClearDir
   const fetchConversations = async () => {
     if (!myProfile?.id) return;
     try {
-      const list = await apiGet(`/api/dm/conversations?profile_id=${myProfile.id}`);
+      const list = await apiGet(`/api/dm/conversations`);
       if (Array.isArray(list)) {
         setConversations(list);
       }
@@ -143,7 +143,7 @@ export function GlobalChat({ myProfile, onOpenProfile, directPartner, onClearDir
   const fetchPartnerMessages = async (partnerId) => {
     if (!myProfile?.id || !partnerId) return;
     try {
-      const data = await apiGet(`/api/dm/messages/${partnerId}?profile_id=${myProfile.id}&mark_read=true`);
+      const data = await apiGet(`/api/dm/messages/${partnerId}?mark_read=true`);
       if (Array.isArray(data)) {
         setDmMessages(data);
         fetchDmUnreadCount();
@@ -313,7 +313,7 @@ export function GlobalChat({ myProfile, onOpenProfile, directPartner, onClearDir
 
     try {
       await apiSend(
-        `/api/dm/conversations/${selectedPartner.id}?profile_id=${myProfile.id}`,
+        `/api/dm/conversations/${selectedPartner.id}`,
         "DELETE"
       );
       setDmMessages([]);
@@ -329,7 +329,7 @@ export function GlobalChat({ myProfile, onOpenProfile, directPartner, onClearDir
   const handleDeleteDmMessage = async (msgId) => {
     if (!myProfile?.id) return;
     try {
-      await apiSend(`/api/dm/messages/${msgId}?profile_id=${myProfile.id}`, "DELETE");
+      await apiSend(`/api/dm/messages/${msgId}`, "DELETE");
       setDmMessages((prev) => prev.filter((m) => m.id !== msgId));
       fetchConversations();
     } catch (err) {
