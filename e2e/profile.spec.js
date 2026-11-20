@@ -1,4 +1,5 @@
 const { test, expect, uniqueId, loginViaUi, logoutViaUi } = require("./support/fixtures");
+const { deleteOwnProfile } = require("./helpers");
 
 test.describe("Zakładka Profil (/profil) & Profil Chłopa (/profil/:id)", () => {
   test(
@@ -90,9 +91,7 @@ test.describe("Zakładka Profil (/profil) & Profil Chłopa (/profil/:id)", () =>
         await expect(page.locator(".profile-card")).toHaveCount(0);
       } finally {
         if (createdProfileId) {
-          await request.delete(`/api/profiles/${createdProfileId}`, {
-            data: { password: testPw },
-          });
+          await deleteOwnProfile(request, { id: createdProfileId, email: testEmail }, testPw);
         }
       }
     }

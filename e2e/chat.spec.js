@@ -1,4 +1,4 @@
-const { test, expect } = require("./support/fixtures");
+const { test, expect, loginAs } = require("./support/fixtures");
 
 test.describe("Chłopczat & Wiadomości DM", () => {
   test(
@@ -74,6 +74,7 @@ test.describe("Chłopczat & Wiadomości DM", () => {
 
       // 2. Wejdź na aplikację jako Janek na komputerze (viewport 1280x800)
       await page.setViewportSize({ width: 1280, height: 800 });
+      await loginAs(page.request, profA.email, profA.password);
       await page.addInitScript(
         ({ user }) => {
           localStorage.setItem("bronet_my_profile_id", String(user.id));

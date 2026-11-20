@@ -1,5 +1,5 @@
 import React, { startTransition, useCallback, useEffect, useRef, useState } from "react";
-import { apiGet } from "./api";
+import { apiGet, apiSend } from "./api";
 import { GlobalChat } from "./components/GlobalChat";
 import { MobileNav } from "./components/MobileNav";
 import { Topbar } from "./components/Topbar";
@@ -100,7 +100,12 @@ export function App() {
   const [mobileHintError, setMobileHintError] = useState(false);
   const mobileHintTimerRef = useRef(null);
 
+  // Id aktualnie zalogowanego profilu, aktualizowane synchronicznie. Pozwala odrzucić
+  // odpowiedzi z odświeżania profilu, które wróciły już po wylogowaniu lub zmianie konta.
+  const myProfileIdRef = useRef(myProfile ? myProfile.id : null);
+
   const setMyProfile = useCallback((profile, syncEditor = true) => {
+    myProfileIdRef.current = profile && profile.id ? profile.id : null;
     if (profile && profile.id) {
       localStorage.setItem(STORAGE_KEY_MY_PROFILE, String(profile.id));
       try {
@@ -177,11 +182,14 @@ export function App() {
       .catch(() => {});
 
     if (savedId) {
-      apiGet(`/api/profiles/${savedId}`)
+      // Zalogowany profil potwierdza serwer na podstawie ciasteczka sesji
+      apiGet("/api/profiles/me")
         .then((p) => {
+          if (myProfileIdRef.current !== savedId) return;
           setMyProfile(p, true);
         })
         .catch(() => {
+          if (myProfileIdRef.current !== savedId) return;
           setMyProfile(null, true);
         });
     }
@@ -295,6 +303,7 @@ export function App() {
   );
 
   const handleLogout = useCallback(() => {
+    apiSend("/api/profiles/logout", "POST").catch(() => {});
     setSessionPasswords({});
     setMyProfile(null, true);
     if (window.location.pathname === "/profil") {
@@ -437,8 +446,12 @@ export function App() {
             onNavigate={navigate}
             onRefreshMyProfile={() => {
               if (myProfile && myProfile.id) {
-                apiGet(`/api/profiles/${myProfile.id}`)
-                  .then((fresh) => setMyProfile(fresh, false))
+                const requestedId = myProfile.id;
+                apiGet(`/api/profiles/${requestedId}`)
+                  .then((fresh) => {
+                    if (myProfileIdRef.current !== requestedId) return;
+                    setMyProfile(fresh, false);
+                  })
                   .catch(() => {});
               }
             }}

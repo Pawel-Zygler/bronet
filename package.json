@@ -16,6 +16,7 @@
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
     "test:unit": "python3 -m unittest discover -s tests -v",
+    "test:frontend": "npm --prefix frontend test",
     "test:unit:coverage": "python3 -m coverage run --source=app -m unittest discover -s tests && python3 -m coverage report -m"
   },
   "devDependencies": {

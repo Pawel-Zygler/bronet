@@ -3,7 +3,9 @@
 // - createProfile: zakłada profil przez API (sprawdza odpowiedź) i usuwa go po teście,
 //   nawet gdy test padnie.
 // - loginViaUi / logoutViaUi: jedno miejsce na logowanie przez formularz /profil.
+// - loginAs (z e2e/helpers.js): logowanie przez API w danym kontekście żądań.
 const base = require("@playwright/test");
+const { loginAs, deleteOwnProfile } = require("../helpers");
 
 const DEFAULT_PASSWORD = "haslo123";
 
@@ -26,14 +28,15 @@ const test = base.test.extend({
       const res = await request.post("/api/profiles", { data });
       base.expect(res.ok(), `POST /api/profiles: ${res.status()} ${await res.text()}`).toBeTruthy();
       const profile = await res.json();
-      created.push({ id: profile.id, password: data.password });
+      created.push({ profile, password: data.password });
       return { ...profile, password: data.password };
     };
 
     await use(createProfile);
 
-    for (const { id, password } of created.reverse()) {
-      await request.delete(`/api/profiles/${id}`, { data: { password } });
+    // API usuwa profil tylko w sesji właściciela, więc deleteOwnProfile najpierw się loguje.
+    for (const { profile, password } of created.reverse()) {
+      await deleteOwnProfile(request, profile, password);
     }
   },
 });
@@ -54,4 +57,4 @@ async function logoutViaUi(page) {
   await base.expect(logoutBtn).toHaveCount(0);
 }
 
-module.exports = { test, expect: base.expect, uniqueId, loginViaUi, logoutViaUi, DEFAULT_PASSWORD };
+module.exports = { test, expect: base.expect, uniqueId, loginAs, loginViaUi, logoutViaUi, DEFAULT_PASSWORD };

@@ -8,7 +8,7 @@ import secrets
 import sqlite3
 import threading
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -786,6 +786,18 @@ def init_db(seed: bool = True) -> None:
 
         _mark_and_lock_test_profiles(conn)
         _ensure_unique_email_index(conn)
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS sessions (
+                token_hash TEXT PRIMARY KEY,
+                profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_sessions_profile_id ON sessions(profile_id);
+            """
+        )
+        conn.execute("DELETE FROM sessions WHERE expires_at < ?", (_now_iso(),))
 
         # Jeśli żaden profil nie ma jeszcze oznaczonej lokalizacji, przypisz przykładowe polskie miasta
         loc_row = conn.execute("SELECT COUNT(*) AS cnt FROM profiles WHERE share_location = 1").fetchone()
@@ -930,6 +942,84 @@ def _ensure_email_available(conn: sqlite3.Connection, email: str, profile_id: Op
     ).fetchone()
     if row:
         raise ProfileValidationError("Ten adres e-mail jest już używany przez inny profil.")
+
+
+SESSION_TTL_SECONDS = 30 * 24 * 3600
+
+
+def _hash_session_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def create_session(profile_id: int) -> str:
+    """Tworzy sesję logowania i zwraca losowy token (w bazie trzymany jest tylko jego hash)."""
+    token = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc)
+    expires = now + timedelta(seconds=SESSION_TTL_SECONDS)
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO sessions (token_hash, profile_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
+            (_hash_session_token(token), profile_id, now.isoformat(), expires.isoformat()),
+        )
+    return token
+
+
+def get_session_profile_id(token: Optional[str]) -> Optional[int]:
+    if not token:
+        return None
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT profile_id FROM sessions WHERE token_hash = ? AND expires_at > ?",
+            (_hash_session_token(token), _now_iso()),
+        ).fetchone()
+    return int(row["profile_id"]) if row else None
+
+
+def delete_session(token: Optional[str]) -> None:
+    if not token:
+        return
+    with get_db() as conn:
+        conn.execute("DELETE FROM sessions WHERE token_hash = ?", (_hash_session_token(token),))
+
+
+def delete_other_sessions(profile_id: int, keep_token: Optional[str]) -> None:
+    keep_hash = _hash_session_token(keep_token) if keep_token else ""
+    with get_db() as conn:
+        conn.execute(
+            "DELETE FROM sessions WHERE profile_id = ? AND token_hash != ?",
+            (profile_id, keep_hash),
+        )
+
+
+MIN_PASSWORD_LENGTH = 8
+MAX_SKILLS_PER_LIST = 30
+MAX_SKILL_LENGTH = 80
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def validate_new_password(raw_password: str) -> None:
+    if len(raw_password) < MIN_PASSWORD_LENGTH:
+        raise ProfileValidationError(f"Hasło musi mieć co najmniej {MIN_PASSWORD_LENGTH} znaków.")
+
+
+def validate_profile_input(data: Dict[str, Any]) -> None:
+    email = normalize_email(data.get("email"))
+    if email and not EMAIL_RE.match(email):
+        raise ProfileValidationError("Podaj poprawny adres e-mail.")
+    for key, label in (("can_help", "Umiem"), ("need_help", "Potrzebuję")):
+        skills = data.get(key) or []
+        if len(skills) > MAX_SKILLS_PER_LIST:
+            raise ProfileValidationError(f"Lista „{label}” może mieć najwyżej {MAX_SKILLS_PER_LIST} pozycji.")
+        if any(len(str(skill or "")) > MAX_SKILL_LENGTH for skill in skills):
+            raise ProfileValidationError(f"Pojedyncza umiejętność może mieć najwyżej {MAX_SKILL_LENGTH} znaków.")
+    lat, lng = data.get("lat"), data.get("lng")
+    try:
+        if lat is not None and not -90 <= float(lat) <= 90:
+            raise ProfileValidationError("Nieprawidłowa szerokość geograficzna.")
+        if lng is not None and not -180 <= float(lng) <= 180:
+            raise ProfileValidationError("Nieprawidłowa długość geograficzna.")
+    except (TypeError, ValueError):
+        raise ProfileValidationError("Nieprawidłowe współrzędne lokalizacji.")
 
 
 def _now_iso() -> str:
@@ -1143,7 +1233,6 @@ def list_profiles(query: str = "", mode: str = "all") -> List[Dict[str, Any]]:
         can_norms = [normalize_text(s) for s in p["can_help"]]
         need_norms = [normalize_text(s) for s in p["need_help"]]
         name_norm = normalize_text(p["name"])
-        email_norm = normalize_text(p.get("email") or "")
         contact_norm = normalize_text(p.get("contact") or "")
         bio_norm = normalize_text(p["bio"])
 
@@ -1153,13 +1242,11 @@ def list_profiles(query: str = "", mode: str = "all") -> List[Dict[str, Any]]:
                 contact_tokens = (
                     contact_norm.replace("|", " ").replace(",", " ").replace(";", " ").split()
                 )
-                is_email_match = (
-                    email_norm == term
-                    or email_norm.startswith(term)
-                    or any(t == term or t.startswith(term) for t in contact_tokens if "@" in t)
+                is_email_match = any(
+                    t == term or t.startswith(term) for t in contact_tokens if "@" in t
                 )
             else:
-                is_email_match = term in email_norm or term in contact_norm
+                is_email_match = term in contact_norm
             if mode == "can_help":
                 if any(term in s for s in can_norms) or ("@" in term and is_email_match):
                     matched = True
@@ -1210,16 +1297,14 @@ def authenticate_profile_by_email(email: str, password: str = "") -> Optional[Di
         if not row:
             return None
         stored_hash = row["password_hash"] or ""
-        if stored_hash:
-            if not verify_password(password, stored_hash):
-                raise ProfileAuthError("Nieprawidłowe hasło dla tego profilu.")
-        else:
-            upgraded_hash = hash_password(password)
-            conn.execute(
-                "UPDATE profiles SET password_hash = ?, updated_at = ? WHERE id = ?",
-                (upgraded_hash, _now_iso(), row["id"]),
+        if not stored_hash:
+            # Wcześniej pierwsze logowanie ustawiało podane hasło, więc konto przejmował
+            # ktokolwiek znał e-mail. Takie konto musi odzyskać administrator.
+            raise ProfileAuthError(
+                "To konto nie ma ustawionego hasła. Skontaktuj się z administratorem, aby je odzyskać."
             )
-            row = conn.execute("SELECT * FROM profiles WHERE id = ?", (row["id"],)).fetchone()
+        if not verify_password(password, stored_hash):
+            raise ProfileAuthError("Nieprawidłowe hasło dla tego profilu.")
         return _hydrate_profiles(conn, [row])[0]
 
 
@@ -1231,6 +1316,7 @@ def create_profile(data: Dict[str, Any]) -> Dict[str, Any]:
     name = str(data.get("name") or "").strip()
     email = normalize_email(data.get("email"))
     validate_men_only(name, email)
+    validate_profile_input(data)
     if email:
         with get_db() as conn:
             existing_row = conn.execute(
@@ -1244,6 +1330,7 @@ def create_profile(data: Dict[str, Any]) -> Dict[str, Any]:
     raw_password = str(data.get("password") or "")
     if not raw_password:
         raise ProfileAuthError("Hasło jest wymagane.")
+    validate_new_password(raw_password)
     with get_db() as conn:
         profile_id = _insert_profile_in_tx(conn, data)
         try:
@@ -1269,16 +1356,20 @@ def update_profile(profile_id: int, data: Dict[str, Any]) -> Optional[Dict[str, 
         provided_password = str(data.get("password") or "")
         new_password = str(data.get("new_password") or "")
 
+        validate_profile_input(data)
         if existing_hash:
             if not verify_password(provided_password, existing_hash):
                 if not provided_password:
                     raise ProfileAuthError("Podaj hasło profilu, aby zapisać zmiany.")
                 raise ProfileAuthError("Nieprawidłowe hasło — nie można zapisać zmian.")
+            if new_password:
+                validate_new_password(new_password)
             effective_hash = hash_password(new_password) if new_password else existing_hash
         else:
             chosen_pw = new_password or provided_password
             if not chosen_pw:
                 raise ProfileAuthError("Hasło jest wymagane — ustaw hasło, aby zapisać profil.")
+            validate_new_password(chosen_pw)
             effective_hash = hash_password(chosen_pw)
 
         now = _now_iso()
@@ -1482,10 +1573,7 @@ def confirm_chlop_help(
         if not to_row:
             raise ProfileValidationError("Profil docelowy nie istnieje.")
 
-        stored_hash = from_row["password_hash"] or ""
-        if stored_hash and password:
-            if not verify_password(password, stored_hash):
-                raise ProfileAuthError("Nieprawidłowe hasło profilu.")
+        # Tożsamość potwierdzającego jest weryfikowana przez sesję w warstwie API.
 
         p1, p2 = min(from_profile_id, to_profile_id), max(from_profile_id, to_profile_id)
         now = _now_iso()

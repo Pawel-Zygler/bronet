@@ -19,19 +19,7 @@ export async function apiSend(url, method, body, extraHeaders = {}) {
     ...extraHeaders,
   };
 
-  try {
-    const rawAuth =
-      localStorage.getItem("bronet_my_profile_cache") ||
-      localStorage.getItem("bronet_auth");
-    if (rawAuth) {
-      const parsed = JSON.parse(rawAuth);
-      const email = parsed?.email?.trim().toLowerCase();
-      if (email === "pawel.zygler@gmail.com" || parsed?.role === "admin") {
-        headers["X-Admin-Email"] = parsed.email || "pawel.zygler@gmail.com";
-      }
-    }
-  } catch (_) {}
-
+  // Tożsamość i uprawnienia wynikają z ciasteczka sesji (HttpOnly), które przeglądarka dołącza sama.
   const res = await fetch(url, {
     method,
     headers,

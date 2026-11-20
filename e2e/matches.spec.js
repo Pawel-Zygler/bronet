@@ -1,4 +1,4 @@
-const { test, expect, uniqueId, loginViaUi, logoutViaUi } = require("./support/fixtures");
+const { test, expect, uniqueId, loginViaUi } = require("./support/fixtures");
 
 test.describe("Zakładka Dopasowania (/dopasowania)", () => {
   test(

@@ -28,6 +28,24 @@ jobs:
           coverage run --source=app -m unittest discover -s tests -v
           coverage report
 
+  frontend-tests:
+    name: Unit Tests (frontend)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci
+
+      - name: Run Vitest
+        run: npm --prefix frontend test
+
   smoke-test:
     name: Smoke Tests
     runs-on: ubuntu-latest
@@ -63,7 +81,7 @@ jobs:
 
   deploy:
     name: Deploy to Railway (Production)
-    needs: [unit-tests, smoke-test]
+    needs: [unit-tests, frontend-tests, smoke-test]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:

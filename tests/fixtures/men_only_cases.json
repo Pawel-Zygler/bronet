@@ -1,0 +1,39 @@
+{
+  "_opis": "Wspólne przypadki reguły men only. Te same dane testuje backend (tests/test_men_only_parity.py) i frontend (frontend/src/utils/text.test.js), żeby listy imion w obu miejscach się nie rozjechały.",
+  "female_names": [
+    "Kasia",
+    "Basia",
+    "Ania",
+    "Anna",
+    "Katarzyna",
+    "Barbara",
+    "Basia Kowalska",
+    "Kasia (Księgowa)",
+    "Zofia",
+    "Małgorzata",
+    "Elżbieta",
+    "  KASIA  ",
+    "Ines",
+    "Ruth",
+    "Bożena Nowak",
+    "Ola"
+  ],
+  "male_names": [
+    "Marek",
+    "Tomek",
+    "Kuba",
+    "Barnaba",
+    "Kosma",
+    "Jarema",
+    "Zawisza",
+    "Bonawentura",
+    "Mustafa",
+    "Paweł Zygler",
+    "Łukasz",
+    "Kuba Nowak",
+    "Stanisław",
+    "Jan",
+    "",
+    "123"
+  ]
+}
