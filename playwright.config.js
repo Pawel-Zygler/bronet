@@ -1,6 +1,6 @@
 const { defineConfig, devices } = require("@playwright/test");
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:8000";
+const { baseURL, isRemoteTarget } = require("./e2e/support/env");
 
 const reporters = process.env.CI ? [["list"], ["github"]] : [["list"]];
 
@@ -22,6 +22,7 @@ module.exports = defineConfig({
   workers: process.env.CI ? 2 : 3,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
+  grepInvert: isRemoteTarget ? /@local-only/ : undefined,
   // Retry zostaje, żeby zebrać trace z drugiej próby, ale w CI test, który przeszedł
   // dopiero za drugim razem (flaky), oblewa cały przebieg zamiast być ukrywany.
   retries: process.env.CI ? 1 : 0,
@@ -51,4 +52,3 @@ module.exports = defineConfig({
         timeout: 60_000,
       },
 });
-

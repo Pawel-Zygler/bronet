@@ -46,6 +46,7 @@ class ProfileResponse(BaseModel):
     name: str
     email: str
     has_password: bool = False
+    is_test: bool = False
     can_help: List[str]
     need_help: List[str]
     contact: str

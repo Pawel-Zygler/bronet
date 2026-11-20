@@ -226,6 +226,11 @@ export function ProfileDetailView({
                 ) : (
                   <span className="badge-role-user" id="detail-role-badge">Chłop</span>
                 )}
+                {profile.is_test && (
+                  <span className="badge badge-test" id="detail-test-badge" title="Profil testowy, nie należy do prawdziwego użytkownika">
+                    Profil testowy
+                  </span>
+                )}
                 {isOtherProfile && (
                   <button
                     type="button"

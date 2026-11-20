@@ -178,7 +178,8 @@ class ChlopchainEconomySimulator:
             with conn:
                 # 1. Pobierz wszystkie dostępne identyfikatory profili męskich
                 all_ids_rows = conn.execute(
-                    "SELECT id FROM profiles ORDER BY id ASC"
+                    # Symulator działa wyłącznie na profilach testowych, nigdy na prawdziwych użytkownikach.
+                    "SELECT id FROM profiles WHERE is_test = 1 ORDER BY id ASC"
                 ).fetchall()
                 all_ids = [r["id"] for r in all_ids_rows]
 

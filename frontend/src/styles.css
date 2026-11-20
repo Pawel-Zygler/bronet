@@ -584,6 +584,12 @@ html {
   color: var(--need-match-text);
 }
 
+.badge-test {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px dashed var(--text-muted);
+}
+
 .card-open-link {
   font-size: 0.85rem;
   color: var(--text-muted);
