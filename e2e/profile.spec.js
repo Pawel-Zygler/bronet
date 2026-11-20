@@ -99,7 +99,7 @@ test.describe("Zakładka Profil (/profil) & Profil Chłopa (/profil/:id)", () =>
 
   test(
     "blokuje rejestrację profilu z żeńskim imieniem (np. Basia / Kasia) — men only",
-    { tag: ["@smoke", "@regression"] },
+    { tag: ["@regression"] },
     async ({ page }) => {
       await page.goto("/profil");
 
@@ -120,7 +120,7 @@ test.describe("Zakładka Profil (/profil) & Profil Chłopa (/profil/:id)", () =>
   );
 
   test(
-    "smoke: po wypełnionej usłudze obaj chłopi przyciskają 'coina' na profilu i każdy otrzymuje po chłopocoinie (+1 CC dla obu w profilu i sieci)",
+    "coin 2/2: obaj chłopi potwierdzają pomoc na swoich profilach i dostają po Chłopocoinie",
     { tag: ["@smoke", "@regression"] },
     async ({ page, createProfile }) => {
       const uid = uniqueId();
@@ -205,64 +205,14 @@ test.describe("Zakładka Profil (/profil) & Profil Chłopa (/profil/:id)", () =>
       await expect(ledgerB).toContainText(userA.name);
       await expect(ledgerB).toContainText("+1 🪙 CC");
 
-      // 8. Wylogowanie Mirka
-      await logoutViaUi(page);
-
-      // 9. Ponowne logowanie Wojtka (Chłop A) i weryfikacja, że ON RÓWNIEŻ OTRZYMAŁ COINA
-      await loginViaUi(page, userA);
-
-      // Wojtek sprawdza swoje saldo w zakładce 'Statystyki'
-      await page.goto("/profil");
-      const statsTabA = page.locator("#editor-tab-stats");
-      await expect(statsTabA).toBeVisible();
-      await statsTabA.click();
-
-      // Saldo Wojtka również wynosi co najmniej 1 CC (każdy profil dostał po coinie!)
-      const coinBalanceA = page.locator("#stats-coin-balance");
-      await expect(coinBalanceA).toBeVisible();
-      await expect(coinBalanceA).toHaveText(/^[1-9]\d*$/);
-
-      // W księdze bloków Wojtka widnieje Mirek z nagrodą +1 CC
-      const ledgerA = page.locator("#stats-blocks-ledger");
-      await expect(ledgerA).toBeVisible();
-      await expect(ledgerA).toContainText(userB.name);
-      await expect(ledgerA).toContainText("+1 🪙 CC");
-
-      // 10. Weryfikacja w zakładce 'Chłopchain' (/chlopchain)
-      const chlopchainNav = page.locator("#nav-link-chlopchain");
-      await expect(chlopchainNav).toBeVisible();
-      await chlopchainNav.click();
-      await expect(page).toHaveURL("/chlopchain");
-
-      // Nowo wykopany blok jest w księdze globalnej
-      const globalLedger = page.locator("#global-stats-blocks-ledger");
-      await expect(globalLedger).toBeVisible();
-      const loadAllBtn = page.locator("#btn-load-all-blocks");
-      if (await loadAllBtn.isVisible()) {
-        await loadAllBtn.click();
-      }
-      await expect(globalLedger).toContainText(userA.name);
-      await expect(globalLedger).toContainText(userB.name);
-      await expect(globalLedger).toContainText("+2 🪙 CC");
-
-      // Tablica liderów jest widoczna i zawiera ranking
-      await page.locator("#tab-btn-leaderboard").click();
-      const leaderboard = page.locator("#global-stats-leaderboard");
-      await expect(leaderboard).toBeVisible();
-      await expect(leaderboard).toContainText("Pozycja");
-
-      // Panel silnika ekonomii (TPS, cykl 60%)
-      const engineCard = page.locator("#economy-engine-panel");
-      await expect(engineCard).toBeVisible();
-      await expect(engineCard).toContainText("Silnik Obrotu Gospodarczego");
-      await expect(engineCard).toContainText(/TPS/);
-      await expect(engineCard).toContainText("60%");
+      // Saldo i blok po stronie Wojtka, globalna księga i ranking: tests/test_chlopchain.py
+      // (konsensus 2/2) oraz ProfileDetailView.test.jsx (stany pending/ready/settled).
     }
   );
 
   test(
-    "smoke: portfel coinów i dashboard chłopchain na profilu każdego użytkownika",
-    { tag: ["@smoke", "@regression"] },
+    "portfel coinów i dashboard chłopchain na profilu każdego użytkownika",
+    { tag: ["@regression"] },
     async ({ page, createProfile }) => {
       // 1. Utworzenie testowego profilu z coinami
       const uniqueSuffix = Date.now().toString().slice(-4);

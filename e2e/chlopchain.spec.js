@@ -56,8 +56,8 @@ test.describe("Zakładka Chłopchain (/chlopchain) & Ekonomia", () => {
   );
 
   test(
-    "smoke: sidebar z suwakami kontroli ekonomii chłopchaina (zmiana TPS, tempa, cel puli, przyciski akcji)",
-    { tag: ["@smoke", "@regression", "@local-only"] },
+    "sidebar z suwakami kontroli ekonomii chłopchaina (zmiana TPS, tempa, cel puli, przyciski akcji)",
+    { tag: ["@regression", "@local-only"] },
     async ({ page, request }) => {
       // Test zakłada konto administratora i zmienia globalną konfigurację silnika ekonomii.
       // Nie może działać na produkcji (patrz e2e/support/env.js).

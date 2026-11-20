@@ -58,8 +58,8 @@ test.describe("Chłopczat & Wiadomości DM", () => {
   );
 
   test(
-    "smoke: responsywny czat na komputerze, autouzupełnianie @name po tapnięciu oraz wiadomości prywatne (DM) z opcjami historii",
-    { tag: ["@smoke", "@regression"] },
+    "responsywny czat na komputerze, autouzupełnianie @name po tapnięciu oraz wiadomości prywatne (DM) z opcjami historii",
+    { tag: ["@regression"] },
     async ({ page, createProfile }) => {
       // 1. Utwórz dwa profile testowe do czatu prywatnego
       const uniqueSuffix = Date.now().toString().slice(-4);

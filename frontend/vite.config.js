@@ -16,6 +16,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.{js,jsx}"],
+    // Testy komponentów wybierają jsdom komentarzem `// @vitest-environment jsdom`.
+    restoreMocks: true,
   },
   server: {
     port: 5173,

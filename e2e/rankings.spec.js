@@ -3,7 +3,7 @@ const { test, expect } = require("@playwright/test");
 test.describe("Zakładka Rankingi (/rankingi)", () => {
   test(
     "zakładka Rankingi (/rankingi): eksponuje dedykowany ranking pomocnych chłopów, medale, filtry i wyszukiwarkę",
-    { tag: ["@smoke", "@regression"] },
+    { tag: ["@regression"] },
     async ({ page }) => {
       await page.goto("/");
       const rankingsLink = page.locator("#nav-link-rankings");
