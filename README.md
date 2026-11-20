@@ -21,7 +21,8 @@ URL lokalny: http://127.0.0.1:8000
 
 | Komenda | Zakres |
 |---|---|
-| `npm run test:unit` | Testy jednostkowe backendu (`unittest`) |
+| `npm run test:unit` | Testy jednostkowe backendu (`unittest`, wymaga `pip install -r requirements-dev.txt`) |
+| `npm run test:unit:coverage` | Testy jednostkowe backendu z raportem pokrycia |
 | `npm run test:smoke` | Szybkie testy E2E `@smoke` (Playwright, lokalnie) |
 | `npm run test:regression` | Pełna regresja E2E `@regression` (Playwright, lokalnie) |
 | `npm test` | Wszystkie testy Playwright E2E |
