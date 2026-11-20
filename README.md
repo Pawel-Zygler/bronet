@@ -30,6 +30,8 @@ URL lokalny: http://127.0.0.1:8000
 | `npm run test:prod:smoke` | Testy `@smoke` na produkcji Railway |
 | `npm run test:prod:regression` | Pełna regresja `@regression` na produkcji Railway |
 
+Na zdalnym adresie (`PLAYWRIGHT_BASE_URL` inny niż localhost) testy oznaczone `@local-only` są pomijane automatycznie. Ten tag dostają testy, które zakładają konto administratora albo zmieniają globalny stan serwera (np. konfigurację silnika ekonomii). Profile testowe zakładane przez pozostałe testy mają adresy w domenie `@bronet.test`.
+
 ## Automation Gate (Kryteria automatyzacji testów)
 
 Zasada decyzyjna przed automatyzacją nowego przypadku testowego:
