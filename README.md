@@ -32,6 +32,8 @@ URL lokalny: http://127.0.0.1:8000
 | `npm run test:prod:smoke` | Testy `@smoke` na produkcji Railway |
 | `npm run test:prod:regression` | Pełna regresja `@regression` na produkcji Railway |
 
+Wspólne fixture'y E2E są w `e2e/support/fixtures.js`. `createProfile` zakłada profil przez API i usuwa go po teście, a `loginViaUi` i `logoutViaUi` logują przez formularz. Lokalny serwer testowy startuje z wyłączonym symulatorem ekonomii (`CHLOPCOIN_SIMULATOR_ENABLED=false`), żeby stan bazy nie zmieniał się w trakcie testów.
+
 Na zdalnym adresie (`PLAYWRIGHT_BASE_URL` inny niż localhost) testy oznaczone `@local-only` są pomijane automatycznie. Ten tag dostają testy, które zakładają konto administratora albo zmieniają globalny stan serwera (np. konfigurację silnika ekonomii). Profile testowe zakładane przez pozostałe testy mają adresy w domenie `@bronet.test`.
 
 ## Automation Gate (Kryteria automatyzacji testów)

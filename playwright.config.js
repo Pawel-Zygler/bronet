@@ -47,6 +47,9 @@ module.exports = defineConfig({
     ? undefined
     : {
         command: "python3 -m uvicorn app.main:app --host 127.0.0.1 --port 8000",
+        // Symulator ekonomii w tle generuje profile i transakcje, przez co stan bazy
+        // zmieniał się w trakcie równoległych testów. Testy wywołują tick jawnie.
+        env: { CHLOPCOIN_SIMULATOR_ENABLED: "false" },
         url: "http://127.0.0.1:8000/api/health",
         reuseExistingServer: !process.env.CI,
         timeout: 60_000,

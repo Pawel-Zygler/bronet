@@ -1,5 +1,5 @@
-const { test, expect } = require("@playwright/test");
-const { loginAs, deleteOwnProfile } = require("./helpers");
+const { test, expect, uniqueId, loginViaUi, logoutViaUi } = require("./support/fixtures");
+const { deleteOwnProfile } = require("./helpers");
 
 test.describe("Zakładka Profil (/profil) & Profil Chłopa (/profil/:id)", () => {
   test(
@@ -122,9 +122,8 @@ test.describe("Zakładka Profil (/profil) & Profil Chłopa (/profil/:id)", () =>
   test(
     "smoke: po wypełnionej usłudze obaj chłopi przyciskają 'coina' na profilu i każdy otrzymuje po chłopocoinie (+1 CC dla obu w profilu i sieci)",
     { tag: ["@smoke", "@regression"] },
-    async ({ page, request }) => {
-      test.setTimeout(60000);
-      const uid = `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    async ({ page, createProfile }) => {
+      const uid = uniqueId();
       const testPw = "haslo123";
 
       const userA = {
@@ -143,220 +142,178 @@ test.describe("Zakładka Profil (/profil) & Profil Chłopa (/profil/:id)", () =>
         need_help: [`spawanie_${uid}`],
       };
 
-      const createdIds = [];
+      // 1. Rejestracja profili przez API (umówieni na wzajemną pomoc)
+      const profA = await createProfile(userA);
+      const profB = await createProfile(userB);
 
-      try {
-        // 1. Rejestracja profili przez API (umówieni na wzajemną pomoc)
-        const resA = await request.post("/api/profiles", { data: userA });
-        expect(resA.ok()).toBeTruthy();
-        const profA = await resA.json();
-        createdIds.push(profA);
+      // 2. Logowanie Wojtka (Chłop A)
+      await loginViaUi(page, userA);
 
-        const resB = await request.post("/api/profiles", { data: userB });
-        expect(resB.ok()).toBeTruthy();
-        const profB = await resB.json();
-        createdIds.push(profB);
+      // 3. Wojtek odwiedza stronę profilu Mirka (Chłop B) po wykonanej usłudze
+      await page.goto(`/profil/${profB.id}`);
+      await expect(page.locator("#detail-heading")).toHaveText(userB.name);
+      const actionBoxA = page.locator("#chlopocoin-action-box");
+      await expect(actionBoxA).toBeVisible();
 
-        // 2. Logowanie Wojtka (Chłop A)
-        await page.goto("/profil");
-        await page.locator("#login-email").fill(userA.email);
-        await page.locator("#login-password").fill(testPw);
-        await page.locator("#login-password").press("Enter");
-        await expect(page.locator(".desktop-nav")).toContainText(`Profil (${userA.name})`);
+      // Wojtek klika przycisk 'coina' (potwierdzenie 1/2 po wykonanej usłudze)
+      const coinBtnA = page.locator("#btn-grant-chlopocoin");
+      await expect(coinBtnA).toBeVisible();
+      await coinBtnA.click();
 
-        // 3. Wojtek odwiedza stronę profilu Mirka (Chłop B) po wykonanej usłudze
-        await page.goto(`/profil/${profB.id}`);
-        await expect(page.locator("#detail-heading")).toHaveText(userB.name);
-        const actionBoxA = page.locator("#chlopocoin-action-box");
-        await expect(actionBoxA).toBeVisible();
+      // Pojawia się status oczekiwania na Mirka (1/2)
+      await expect(page.locator("#chlopocoin-pending-box")).toBeVisible();
+      await expect(page.locator("#chlopocoin-pending-box")).toContainText("Twoje potwierdzenie zapisane (1/2)");
 
-        // Wojtek klika przycisk 'coina' (potwierdzenie 1/2 po wykonanej usłudze)
-        const coinBtnA = page.locator("#btn-grant-chlopocoin");
-        await expect(coinBtnA).toBeVisible();
-        await coinBtnA.click();
+      // 4. Wylogowanie Wojtka
+      await logoutViaUi(page);
 
-        // Pojawia się status oczekiwania na Mirka (1/2)
-        await expect(page.locator("#chlopocoin-pending-box")).toBeVisible();
-        await expect(page.locator("#chlopocoin-pending-box")).toContainText("Twoje potwierdzenie zapisane (1/2)");
+      // 5. Logowanie Mirka (Chłop B)
+      await loginViaUi(page, userB);
 
-        // 4. Wylogowanie Wojtka
-        await page.locator(".desktop-nav button", { hasText: "Wyloguj" }).click();
-        await expect(page.locator(".desktop-nav button", { hasText: "Wyloguj" })).toHaveCount(0);
-        await page.goto("/profil");
-        await expect(page.locator("#login-email")).toBeVisible();
+      // 6. Mirek odwiedza stronę profilu Wojtka (Chłop A)
+      await page.goto(`/profil/${profA.id}`);
+      await expect(page.locator("#detail-heading")).toHaveText(userA.name);
 
-        // 5. Logowanie Mirka (Chłop B)
-        await page.locator("#login-email").fill(userB.email);
-        await page.locator("#login-password").fill(testPw);
-        await page.locator("#login-password").press("Enter");
-        await expect(page.locator(".desktop-nav")).toContainText(`Profil (${userB.name})`);
+      // Mirek widzi informację, że Wojtek już potwierdził pomoc
+      await expect(page.locator("#chlopocoin-ready-box")).toBeVisible();
+      await expect(page.locator("#chlopocoin-ready-box")).toContainText("Wojtek");
 
-        // 6. Mirek odwiedza stronę profilu Wojtka (Chłop A)
-        await page.goto(`/profil/${profA.id}`);
-        await expect(page.locator("#detail-heading")).toHaveText(userA.name);
+      // Mirek klika przycisk coina -> KONSENSUS 2/2 OSIĄGNIĘTY!
+      const coinBtnB = page.locator("#btn-grant-chlopocoin");
+      await expect(coinBtnB).toBeVisible();
+      await coinBtnB.click();
 
-        // Mirek widzi informację, że Wojtek już potwierdził pomoc
-        await expect(page.locator("#chlopocoin-ready-box")).toBeVisible();
-        await expect(page.locator("#chlopocoin-ready-box")).toContainText("Wojtek");
+      // Sukces: blok zatwierdzony w sieci Chłopchain, obaj dostali po coinie
+      await expect(page.locator("#chlopocoin-settled-box")).toBeVisible();
+      await expect(page.locator("#chlopocoin-settled-box")).toContainText("Chłopocoin przyznany obu profilom (2/2)");
 
-        // Mirek klika przycisk coina -> KONSENSUS 2/2 OSIĄGNIĘTY!
-        const coinBtnB = page.locator("#btn-grant-chlopocoin");
-        await expect(coinBtnB).toBeVisible();
-        await coinBtnB.click();
+      // 7. Weryfikacja Mirka: przechodzi do swojego profilu i otwiera zakładkę 'Statystyki'
+      await page.goto("/profil");
+      const statsTabB = page.locator("#editor-tab-stats");
+      await expect(statsTabB).toBeVisible();
+      await statsTabB.click();
 
-        // Sukces: blok zatwierdzony w sieci Chłopchain, obaj dostali po coinie
-        await expect(page.locator("#chlopocoin-settled-box")).toBeVisible();
-        await expect(page.locator("#chlopocoin-settled-box")).toContainText("Chłopocoin przyznany obu profilom (2/2)");
+      // Saldo Mirka wynosi co najmniej 1 CC (otrzymał monetę za konsensus)
+      await expect(page.locator("#editor-panel-stats")).toBeVisible();
+      const coinBalanceB = page.locator("#stats-coin-balance");
+      await expect(coinBalanceB).toBeVisible();
+      await expect(coinBalanceB).toHaveText(/^[1-9]\d*$/);
 
-        // 7. Weryfikacja Mirka: przechodzi do swojego profilu i otwiera zakładkę 'Statystyki'
-        await page.goto("/profil");
-        const statsTabB = page.locator("#editor-tab-stats");
-        await expect(statsTabB).toBeVisible();
-        await statsTabB.click();
+      // W księdze bloków Mirka widnieje Wojtek z nagrodą +1 CC
+      const ledgerB = page.locator("#stats-blocks-ledger");
+      await expect(ledgerB).toBeVisible();
+      await expect(ledgerB).toContainText(userA.name);
+      await expect(ledgerB).toContainText("+1 🪙 CC");
 
-        // Saldo Mirka wynosi co najmniej 1 CC (otrzymał monetę za konsensus)
-        await expect(page.locator("#editor-panel-stats")).toBeVisible();
-        const coinBalanceB = page.locator("#stats-coin-balance");
-        await expect(coinBalanceB).toBeVisible();
-        await expect(coinBalanceB).toHaveText(/^[1-9]\d*$/);
+      // 8. Wylogowanie Mirka
+      await logoutViaUi(page);
 
-        // W księdze bloków Mirka widnieje Wojtek z nagrodą +1 CC
-        const ledgerB = page.locator("#stats-blocks-ledger");
-        await expect(ledgerB).toBeVisible();
-        await expect(ledgerB).toContainText(userA.name);
-        await expect(ledgerB).toContainText("+1 🪙 CC");
+      // 9. Ponowne logowanie Wojtka (Chłop A) i weryfikacja, że ON RÓWNIEŻ OTRZYMAŁ COINA
+      await loginViaUi(page, userA);
 
-        // 8. Wylogowanie Mirka
-        await page.locator(".desktop-nav button", { hasText: "Wyloguj" }).click();
-        await expect(page.locator(".desktop-nav button", { hasText: "Wyloguj" })).toHaveCount(0);
-        await page.goto("/profil");
-        await expect(page.locator("#login-email")).toBeVisible();
+      // Wojtek sprawdza swoje saldo w zakładce 'Statystyki'
+      await page.goto("/profil");
+      const statsTabA = page.locator("#editor-tab-stats");
+      await expect(statsTabA).toBeVisible();
+      await statsTabA.click();
 
-        // 9. Ponowne logowanie Wojtka (Chłop A) i weryfikacja, że ON RÓWNIEŻ OTRZYMAŁ COINA
-        await page.locator("#login-email").fill(userA.email);
-        await page.locator("#login-password").fill(testPw);
-        await page.locator("#login-password").press("Enter");
-        await expect(page.locator(".desktop-nav")).toContainText(`Profil (${userA.name})`);
+      // Saldo Wojtka również wynosi co najmniej 1 CC (każdy profil dostał po coinie!)
+      const coinBalanceA = page.locator("#stats-coin-balance");
+      await expect(coinBalanceA).toBeVisible();
+      await expect(coinBalanceA).toHaveText(/^[1-9]\d*$/);
 
-        // Wojtek sprawdza swoje saldo w zakładce 'Statystyki'
-        await page.goto("/profil");
-        const statsTabA = page.locator("#editor-tab-stats");
-        await expect(statsTabA).toBeVisible();
-        await statsTabA.click();
+      // W księdze bloków Wojtka widnieje Mirek z nagrodą +1 CC
+      const ledgerA = page.locator("#stats-blocks-ledger");
+      await expect(ledgerA).toBeVisible();
+      await expect(ledgerA).toContainText(userB.name);
+      await expect(ledgerA).toContainText("+1 🪙 CC");
 
-        // Saldo Wojtka również wynosi co najmniej 1 CC (każdy profil dostał po coinie!)
-        const coinBalanceA = page.locator("#stats-coin-balance");
-        await expect(coinBalanceA).toBeVisible();
-        await expect(coinBalanceA).toHaveText(/^[1-9]\d*$/);
+      // 10. Weryfikacja w zakładce 'Chłopchain' (/chlopchain)
+      const chlopchainNav = page.locator("#nav-link-chlopchain");
+      await expect(chlopchainNav).toBeVisible();
+      await chlopchainNav.click();
+      await expect(page).toHaveURL("/chlopchain");
 
-        // W księdze bloków Wojtka widnieje Mirek z nagrodą +1 CC
-        const ledgerA = page.locator("#stats-blocks-ledger");
-        await expect(ledgerA).toBeVisible();
-        await expect(ledgerA).toContainText(userB.name);
-        await expect(ledgerA).toContainText("+1 🪙 CC");
-
-        // 10. Weryfikacja w zakładce 'Chłopchain' (/chlopchain)
-        const chlopchainNav = page.locator("#nav-link-chlopchain");
-        await expect(chlopchainNav).toBeVisible();
-        await chlopchainNav.click();
-        await expect(page).toHaveURL("/chlopchain");
-
-        // Nowo wykopany blok jest w księdze globalnej
-        const globalLedger = page.locator("#global-stats-blocks-ledger");
-        await expect(globalLedger).toBeVisible();
-        const loadAllBtn = page.locator("#btn-load-all-blocks");
-        if (await loadAllBtn.isVisible()) {
-          await loadAllBtn.click();
-        }
-        await expect(globalLedger).toContainText(userA.name);
-        await expect(globalLedger).toContainText(userB.name);
-        await expect(globalLedger).toContainText("+2 🪙 CC");
-
-        // Tablica liderów jest widoczna i zawiera ranking
-        await page.locator("#tab-btn-leaderboard").click();
-        const leaderboard = page.locator("#global-stats-leaderboard");
-        await expect(leaderboard).toBeVisible();
-        await expect(leaderboard).toContainText("Pozycja");
-
-        // Panel silnika ekonomii (TPS, cykl 60%)
-        const engineCard = page.locator("#economy-engine-panel");
-        await expect(engineCard).toBeVisible();
-        await expect(engineCard).toContainText("Silnik Obrotu Gospodarczego");
-        await expect(engineCard).toContainText(/TPS/);
-        await expect(engineCard).toContainText("60%");
-      } finally {
-        for (const prof of createdIds) {
-          await deleteOwnProfile(request, prof, testPw);
-        }
+      // Nowo wykopany blok jest w księdze globalnej
+      const globalLedger = page.locator("#global-stats-blocks-ledger");
+      await expect(globalLedger).toBeVisible();
+      const loadAllBtn = page.locator("#btn-load-all-blocks");
+      if (await loadAllBtn.isVisible()) {
+        await loadAllBtn.click();
       }
+      await expect(globalLedger).toContainText(userA.name);
+      await expect(globalLedger).toContainText(userB.name);
+      await expect(globalLedger).toContainText("+2 🪙 CC");
+
+      // Tablica liderów jest widoczna i zawiera ranking
+      await page.locator("#tab-btn-leaderboard").click();
+      const leaderboard = page.locator("#global-stats-leaderboard");
+      await expect(leaderboard).toBeVisible();
+      await expect(leaderboard).toContainText("Pozycja");
+
+      // Panel silnika ekonomii (TPS, cykl 60%)
+      const engineCard = page.locator("#economy-engine-panel");
+      await expect(engineCard).toBeVisible();
+      await expect(engineCard).toContainText("Silnik Obrotu Gospodarczego");
+      await expect(engineCard).toContainText(/TPS/);
+      await expect(engineCard).toContainText("60%");
     }
   );
 
   test(
     "smoke: portfel coinów i dashboard chłopchain na profilu każdego użytkownika",
     { tag: ["@smoke", "@regression"] },
-    async ({ page, request }) => {
+    async ({ page, createProfile }) => {
       // 1. Utworzenie testowego profilu z coinami
       const uniqueSuffix = Date.now().toString().slice(-4);
-      const testEmail = `chlop.portfel.${uniqueSuffix}@bronet.test`;
-      const res = await request.post("/api/profiles", {
-        data: {
-          name: `Zenek Portfelowy ${uniqueSuffix}`,
-          email: testEmail,
-          password: "haslo123wallet",
-          can_help: ["mechanika"],
-          need_help: ["spawanie"],
-        },
+      const prof = await createProfile({
+        name: `Zenek Portfelowy ${uniqueSuffix}`,
+        can_help: ["mechanika"],
+        need_help: ["spawanie"],
       });
-      expect(res.ok()).toBeTruthy();
-      const prof = await res.json();
 
-      try {
-        // 2. Otwarcie profilu Zenka jako gość
-        await page.goto(`/profil/${prof.id}`);
-        await expect(page.locator("#detail-heading")).toHaveText(`Zenek Portfelowy ${uniqueSuffix}`);
+      // 2. Otwarcie profilu Zenka jako gość
+      await page.goto(`/profil/${prof.id}`);
+      await expect(page.locator("#detail-heading")).toHaveText(`Zenek Portfelowy ${uniqueSuffix}`);
 
-        // Pigułka monet w nagłówku profilu jest widoczna
-        const coinPill = page.locator("#detail-coin-pill");
-        await expect(coinPill).toBeVisible();
+      // Pigułka monet w nagłówku profilu jest widoczna
+      const coinPill = page.locator("#detail-coin-pill");
+      await expect(coinPill).toBeVisible();
 
-        // Zakładka 'Portfel Coinów' jest obecna w liście zakładek profilu
-        const walletTab = page.locator("#detail-tab-wallet");
-        await expect(walletTab).toBeVisible();
-        await expect(walletTab).toContainText("Portfel Coinów");
+      // Zakładka 'Portfel Coinów' jest obecna w liście zakładek profilu
+      const walletTab = page.locator("#detail-tab-wallet");
+      await expect(walletTab).toBeVisible();
+      await expect(walletTab).toContainText("Portfel Coinów");
 
-        // 3. Przełączenie do zakładki Portfel Coinów
-        await walletTab.click();
-        await expect(walletTab).toHaveAttribute("aria-selected", "true");
+      // 3. Przełączenie do zakładki Portfel Coinów
+      await walletTab.click();
+      await expect(walletTab).toHaveAttribute("aria-selected", "true");
 
-        // Dashboard portfela jest widoczny
-        const walletPanel = page.locator("#detail-panel-wallet");
-        await expect(walletPanel).toBeVisible();
+      // Dashboard portfela jest widoczny
+      const walletPanel = page.locator("#detail-panel-wallet");
+      await expect(walletPanel).toBeVisible();
 
-        // Hero portfela z saldem
-        await expect(page.locator("#detail-wallet-hero")).toBeVisible();
-        await expect(page.locator("#detail-wallet-balance")).toBeVisible();
+      // Hero portfela z saldem
+      await expect(page.locator("#detail-wallet-hero")).toBeVisible();
+      await expect(page.locator("#detail-wallet-balance")).toBeVisible();
 
-        // Metryki portfela (saldo, wykopane bloki, oczekujące)
-        const metricsGrid = page.locator("#detail-wallet-metrics");
-        await expect(metricsGrid).toBeVisible();
-        await expect(page.locator("#detail-metric-balance")).toBeVisible();
-        await expect(page.locator("#detail-metric-completed")).toBeVisible();
-        await expect(page.locator("#detail-metric-pending")).toBeVisible();
+      // Metryki portfela (saldo, wykopane bloki, oczekujące)
+      const metricsGrid = page.locator("#detail-wallet-metrics");
+      await expect(metricsGrid).toBeVisible();
+      await expect(page.locator("#detail-metric-balance")).toBeVisible();
+      await expect(page.locator("#detail-metric-completed")).toBeVisible();
+      await expect(page.locator("#detail-metric-pending")).toBeVisible();
 
-        // Księga bloków na profilu chłopa
-        const ledger = page.locator("#detail-blocks-ledger");
-        await expect(ledger).toBeVisible();
-        await expect(ledger).toContainText("Księga Rozproszona Chłopchain");
+      // Księga bloków na profilu chłopa
+      const ledger = page.locator("#detail-blocks-ledger");
+      await expect(ledger).toBeVisible();
+      await expect(ledger).toContainText("Księga Rozproszona Chłopchain");
 
-        // Link do globalnej sieci Chłopchain
-        const globalLink = ledger.locator(".ledger-global-link");
-        await expect(globalLink).toBeVisible();
-        await globalLink.click();
-        await expect(page).toHaveURL("/chlopchain");
-      } finally {
-        await deleteOwnProfile(request, prof, "haslo123wallet");
-      }
+      // Link do globalnej sieci Chłopchain
+      const globalLink = ledger.locator(".ledger-global-link");
+      await expect(globalLink).toBeVisible();
+      await globalLink.click();
+      await expect(page).toHaveURL("/chlopchain");
     }
   );
 });
