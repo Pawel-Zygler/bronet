@@ -36,6 +36,12 @@ Wspólne fixture'y E2E są w `e2e/support/fixtures.js`. `createProfile` zakłada
 
 Na zdalnym adresie (`PLAYWRIGHT_BASE_URL` inny niż localhost) testy oznaczone `@local-only` są pomijane automatycznie. Ten tag dostają testy, które zakładają konto administratora albo zmieniają globalny stan serwera (np. konfigurację silnika ekonomii). Profile testowe zakładane przez pozostałe testy mają adresy w domenie `@bronet.test`.
 
+### Testy backendu
+
+Testy są w `tests/`, po jednym pliku na obszar (`test_profiles.py`, `test_chlopchain.py`, `test_chat_dm.py`, `test_achievements.py`, `test_economy.py`, `test_security.py`, `test_men_only.py`). Czyste funkcje bez bazy testuje `test_pure_functions.py`. Każdy plik importuje `support.BackendTestCase`, który ustawia osobną bazę testową i przed każdym testem kopiuje gotową bazę z seedem.
+
+Jeden plik uruchomisz z katalogu głównego repo: `python3 -m unittest discover -s tests -p test_profiles.py`.
+
 ## Automation Gate (Kryteria automatyzacji testów)
 
 Zasada decyzyjna przed automatyzacją nowego przypadku testowego:
