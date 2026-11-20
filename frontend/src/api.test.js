@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiGet, apiSend } from "./api";
 
 function jsonResponse(status, body) {
@@ -11,10 +11,6 @@ function jsonResponse(status, body) {
 
 beforeEach(() => {
   vi.stubGlobal("localStorage", { getItem: () => null });
-});
-
-afterEach(() => {
-  vi.unstubAllGlobals();
 });
 
 describe("apiGet", () => {

@@ -34,10 +34,7 @@ function renderDetail(props = {}) {
   );
 }
 
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
-});
+afterEach(cleanup);
 
 describe("ProfileDetailView: Chłopocoin 2/2", () => {
   it("gość nie widzi panelu coina", async () => {

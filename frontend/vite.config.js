@@ -18,6 +18,8 @@ export default defineConfig({
     include: ["src/**/*.test.{js,jsx}"],
     // Testy komponentów wybierają jsdom komentarzem `// @vitest-environment jsdom`.
     restoreMocks: true,
+    // Przywraca fetch i inne globalne podmiany (vi.stubGlobal) po każdym teście.
+    unstubGlobals: true,
   },
   server: {
     port: 5173,

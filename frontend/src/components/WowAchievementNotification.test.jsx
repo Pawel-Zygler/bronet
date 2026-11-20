@@ -116,6 +116,5 @@ describe("WowAchievementNotification", () => {
       vi.advanceTimersByTime(6000);
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    vi.unstubAllGlobals();
   });
 });
